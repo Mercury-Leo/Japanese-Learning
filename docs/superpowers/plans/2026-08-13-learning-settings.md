@@ -192,7 +192,7 @@ export function mergeSettings(stored) {
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `npm test`
-Expected: PASS, and the total count rises from 61 to 73.
+Expected: PASS, and the total count rises from 61 to 74 (the block adds 13 assertions).
 
 ---
 
