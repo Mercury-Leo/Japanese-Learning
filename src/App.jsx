@@ -1033,6 +1033,8 @@ export default function App() {
   }, [pendingDelete]);
 
   const selected = words.find((w) => w.id === selId) || null;
+  const scopedWords = useMemo(() => words.filter((w) => wordInScope(w, settings)), [words, settings]);
+  const classChoices = TYPES.filter((t) => settings.types.includes(t.id) || t.id === selected?.type);
   const forms = useMemo(() => conjugate(selected), [selected]);
   const shown = useMemo(() => visibleForms(forms, settings), [forms, settings]);
 
@@ -1046,7 +1048,7 @@ export default function App() {
   const readingOut = form ? form.segs.map((s) => s.kana).join("") : "";
   const activeSeg = form && segIdx != null ? form.segs[segIdx] : null;
 
-  const filtered = words.filter((w) => {
+  const filtered = scopedWords.filter((w) => {
     const q = query.trim().toLowerCase();
     if (!q) return true;
     return (w.word + w.reading + w.meaning + romaji(w.reading)).toLowerCase().includes(q);
@@ -1274,7 +1276,7 @@ export default function App() {
               </div>
             </div>
             <span className="kd-tagline" style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".16em", color: C.muted }}>
-              {words.length} ENTR{words.length === 1 ? "Y" : "IES"}
+              {scopedWords.length} ENTR{scopedWords.length === 1 ? "Y" : "IES"}
             </span>
           </div>
         </div>
@@ -1305,7 +1307,7 @@ export default function App() {
         <SettingsView
           settings={settings}
           onChange={setSettings}
-          wordCount={words.length}
+          wordCount={scopedWords.length}
           formCount={settings.formIds.length}
         />
       )}
@@ -1412,7 +1414,11 @@ export default function App() {
               <div style={{ padding: 22, textAlign: "center" }}>
                 <div style={{ fontFamily: MINCHO, fontSize: 28, color: C.rule, marginBottom: 8 }}>空</div>
                 <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
-                  {words.length ? "Nothing matches that search." : "The deck is empty. Add a word and the breakdown builds itself."}
+                  {words.length === 0
+                    ? "The deck is empty. Add a word and the breakdown builds itself."
+                    : scopedWords.length === 0
+                      ? "No words match your current scope. Widen it in Settings."
+                      : "Nothing matches that search."}
                 </div>
               </div>
             )}
@@ -1501,7 +1507,7 @@ export default function App() {
                 <div style={{ paddingBottom: 4 }}>
                   <div style={{ fontSize: 13, color: C.ink }}>{selected.meaning || <span style={{ color: C.muted }}>no gloss</span>}</div>
                   <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
-                    {TYPES.map((t) => (
+                    {classChoices.map((t) => (
                       <button key={t.id} className="kd-btn kd-form-chip" onClick={() => setType(selected.id, t.id)}
                         style={{
                           fontFamily: MONO, fontSize: 9.5, letterSpacing: ".08em", padding: "6px 9px",
