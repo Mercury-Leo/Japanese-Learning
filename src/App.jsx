@@ -142,7 +142,8 @@ function StackPanel({ word, script, settings }) {
   const [chain, setChain] = useState([]);
   const [pick, setPick] = useState(null);
   const st = useMemo(() => applyChain(word, chain), [word, chain.join(",")]); // eslint-disable-line
-  const avail = MODS.filter((m) => m.from.includes(st.cls));
+  const enabled = visibleMods(settings);
+  const avail = enabled.filter((m) => m.from.includes(st.cls));
   const kana = st.segs.map((s) => s.kana).join("");
   const active = pick != null ? st.segs[pick] : null;
   const micro = { fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: C.muted };
@@ -205,7 +206,11 @@ function StackPanel({ word, script, settings }) {
 
       {/* what can still be applied */}
       <div style={{ borderTop: "1px solid " + C.ruleSoft, paddingTop: 11 }}>
-        {avail.length === 0 ? (
+        {enabled.length === 0 ? (
+          <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55 }}>
+            No stack modifiers enabled. Turn some on in Settings.
+          </div>
+        ) : avail.length === 0 ? (
           <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55 }}>
             Nothing more attaches here — ます, た and て close a chain. Undo to branch off somewhere else.
           </div>
