@@ -1,0 +1,121 @@
+/* Regression suite for the conjugation engine.
+   No framework: node test/engine.test.mjs  (or: npm test)
+   Every case here corresponds to a bug that actually occurred during
+   development, so deleting one is how a fixed bug comes back. */
+import { readFileSync } from "node:fs";
+import {
+  romaji, toKana, settleKana, conjugate, detectType,
+  stackInit, stackApply, answerMatches, columns, formText,
+} from "../src/engine.js";
+
+let pass = 0, fail = 0;
+const eq = (got, want, label) => {
+  if (got === want) { pass++; return; }
+  fail++;
+  console.log(`  FAIL ${label}\n       got  ${got}\n       want ${want}`);
+};
+const W = (word, reading, type) => ({ word, reading, type });
+const group = (name) => console.log("\n" + name);
+
+/* ---------------- conjugation ---------------- */
+group("conjugation");
+const form = (w, id) => {
+  const f = conjugate(w).find((x) => x.id === id);
+  return f ? formText(f) : "(missing)";
+};
+// 行く is the one irregular て-form in the godan class
+eq(form(W("行く", "いく", "godan"), "te"), "行って", "行く te-form is 行って, not 行いて");
+eq(form(W("書く", "かく", "godan"), "te"), "書いて", "regular く verb keeps いて");
+eq(form(W("泳ぐ", "およぐ", "godan"), "te"), "泳いで", "ぐ voices to いで");
+eq(form(W("飲む", "のむ", "godan"), "te"), "飲んで", "む goes nasal");
+eq(form(W("買う", "かう", "godan"), "nai"), "買わない", "う takes わ, not あ");
+eq(form(W("いい", "いい", "i-adj"), "ta"), "よかった", "いい borrows 良い");
+eq(form(W("勉強する", "べんきょうする", "suru"), "pot"), "勉強できる", "する potential is できる");
+eq(form(W("来る", "くる", "kuru"), "imp"), "来い", "来る imperative is 来い, not 来ろ");
+
+/* ---------------- word class detection ---------------- */
+group("class detection");
+eq(detectType("学生", "がくせい"), "noun", "kanji-final word is not an い-adjective");
+eq(detectType("高い", "たかい"), "i-adj", "trailing kana い means い-adjective");
+eq(detectType("帰る", "かえる"), "godan", "帰る is godan despite the える ending");
+eq(detectType("食べる", "たべる"), "ichidan", "食べる is ichidan");
+
+/* ---------------- furigana alignment ---------------- */
+group("furigana");
+const cols = (t, k) => columns(t, k, "furigana").map((c) => (c.ruby ? `${c.base}(${c.ruby})` : c.base)).join("");
+eq(cols("食べ", "たべ"), "食(た)べ", "ruby sits on the kanji only");
+eq(cols("お茶", "おちゃ"), "お茶(ちゃ)", "leading kana is peeled off too");
+eq(cols("静か", "しずか"), "静(しず)か", "trailing kana is peeled off");
+
+/* ---------------- kana IME ---------------- */
+group("kana IME");
+eq(toKana("itte"), "いって", "gemination");
+eq(toKana("nonde"), "のんで", "n before a consonant");
+eq(toKana("konnichi"), "こんにち", "nn consumes one n, not two");
+eq(toKana("nya"), "にゃ", "digraph beats the n rule");
+eq(toKana("na"), "な", "a lone n must stay pending");
+eq(settleKana("ikimasen"), "いきません", "trailing n settles on submit");
+eq(toKana("tabesaseraretakunakatta"), "たべさせられたくなかった", "long input");
+
+/* ---------------- stacked forms ---------------- */
+group("stacked forms");
+const chain = (w, ...mods) => {
+  let st = stackInit(w);
+  for (const m of mods) st = stackApply(st, m);
+  return st;
+};
+eq(chain(W("食べる", "たべる", "ichidan"), "caus", "pass", "tai", "neg", "past").segs.map((s) => s.text).join(""),
+   "食べさせられたくなかった", "five modifiers compose");
+eq(chain(W("食べる", "たべる", "ichidan"), "caus", "pass", "tai", "neg", "past").segs.length,
+   8, "every morpheme keeps its own segment");
+eq(chain(W("来る", "くる", "kuru"), "prog", "polite").segs.map((s) => s.kana).join(""),
+   "きています", "来る shifts its reading under inflection");
+eq(chain(W("いい", "いい", "i-adj"), "neg", "past").segs.map((s) => s.text).join(""),
+   "よくなかった", "いい substitutes よ when it inflects");
+eq(chain(W("勉強する", "べんきょうする", "suru"), "pot", "neg", "polite").segs.map((s) => s.text).join(""),
+   "勉強できないです", "suru potential then adjective inflection");
+eq(chain(W("高い", "たかい", "i-adj"), "polite").segs.map((s) => s.text).join(""),
+   "高いです", "い-adjective keeps its い before です");
+eq(chain(W("行く", "いく", "godan"), "polite").cls, "closed", "ます closes the chain");
+
+/* ---------------- answer matching ---------------- */
+group("answer matching");
+const te = conjugate(W("行く", "いく", "godan")).find((f) => f.id === "te");
+for (const good of ["行って", "いって", "itte", " ITTE "])
+  eq(answerMatches(good, te), true, `accepts ${good.trim()}`);
+for (const bad of ["iite", "いいて", "ite"])
+  eq(answerMatches(bad, te), false, `rejects ${bad} (the regular-but-wrong form)`);
+const takakatta = conjugate(W("高い", "たかい", "i-adj")).find((f) => f.id === "ta");
+eq(answerMatches("takakatta", takakatta), true, "lenient romanisation");
+eq(answerMatches("takakata", takakatta), false, "gemination is not collapsed");
+const hanasu = conjugate(W("話す", "はなす", "godan")).find((f) => f.id === "masu");
+eq(answerMatches("hanasimasu", hanasu), true, "si and shi both accepted");
+
+/* ---------------- homographs ---------------- */
+group("homographs");
+// An ichidan potential and passive are the same string. Quiz distractors must be
+// filtered by answer text, not by form id, or a correct answer scores as wrong.
+const tf = conjugate(W("食べる", "たべる", "ichidan"));
+eq(formText(tf.find((f) => f.id === "pot")), formText(tf.find((f) => f.id === "pass")),
+   "食べられる is both potential and passive");
+
+/* ---------------- module wiring ---------------- */
+// GODAN was left out of App.jsx's import list when the single file was split, so
+// tapping a godan stem unmounted the whole tree. Nothing that only calls the
+// engine can see that, hence this static check on the import list itself.
+group("module wiring");
+const read = (p) => readFileSync(new URL(p, import.meta.url), "utf8");
+const decomment = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+const names = (src, re) => (src.match(re)?.[1] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+
+const appSrc = read("../src/App.jsx");
+const exported = names(decomment(read("../src/engine.js")), /export \{([^{}]*?)\}/);
+const imported = names(appSrc, /import \{([^{}]*?)\} from "\.\/engine\.js"/);
+const appCode = decomment(appSrc);
+eq(exported.length > 0 && imported.length > 0, true, "found both the engine export list and App.jsx's import of it");
+for (const name of exported)
+  if (new RegExp(`\\b${name}\\b`).test(appCode))
+    eq(imported.includes(name), true, `App.jsx references ${name} but does not import it from engine.js`);
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);
