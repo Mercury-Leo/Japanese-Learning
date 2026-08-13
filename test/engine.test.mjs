@@ -186,6 +186,14 @@ for (const name of Object.keys(PRESETS)) {
   }
 }
 
+// The loop above passes structurally today: every builder emits dict and te, which
+// Beginner enables. This is its negative control — proof the check can detect the
+// failure it claims to guard, so the loop is a real forward guard for new presets.
+eq(visibleForms(conjugate({ word: "静か", reading: "しずか", type: "na-adj" }),
+                { ...DEFAULTS, formIds: ["pot", "caus"] }).length,
+   0,
+   "a preset with no ids for a class blanks it — what the loop above guards");
+
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so
 // tapping a godan stem unmounted the whole tree. Nothing that only calls the
