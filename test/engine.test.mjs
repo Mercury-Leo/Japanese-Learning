@@ -9,6 +9,7 @@ import {
   SEED, TYPES,
 } from "../src/engine.js";
 import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope } from "../src/settings.js";
+import { tagsFromLookup } from "../src/api.js";
 
 let pass = 0, fail = 0;
 const eq = (got, want, label) => {
@@ -193,6 +194,17 @@ eq(visibleForms(conjugate({ word: "静か", reading: "しずか", type: "na-adj"
                 { ...DEFAULTS, formIds: ["pot", "caus"] }).length,
    0,
    "a preset with no ids for a class blanks it — what the loop above guards");
+
+// A model can return anything. Storing a guess as fact would let a bad tag hide a
+// word the learner added, so anything unrecognised is dropped rather than kept.
+eq(JSON.stringify(tagsFromLookup({ jlpt: "N5", transitivity: "transitive", common: true })),
+   JSON.stringify({ jlpt: "N5", trans: "trans", common: true }), "valid tags map through");
+eq(JSON.stringify(tagsFromLookup({ jlpt: "N9", transitivity: "maybe", common: "yes" })),
+   JSON.stringify({}), "unrecognised values are dropped, not stored");
+eq(JSON.stringify(tagsFromLookup({})), JSON.stringify({}), "absent tags stay absent");
+eq(JSON.stringify(tagsFromLookup(null)), JSON.stringify({}), "a null payload is safe");
+eq(tagsFromLookup({ transitivity: "n/a" }).trans, "na", "n/a maps to na");
+eq(tagsFromLookup({ transitivity: "intransitive" }).trans, "intrans", "intransitive maps to intrans");
 
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so

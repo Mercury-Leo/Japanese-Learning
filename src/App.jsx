@@ -978,7 +978,7 @@ export default function App() {
   const speech = useSpeechStatus();
   const [quizRun, setQuizRun] = useState({ running: false, done: 0, total: 0 });
   const [pendingLeave, setPendingLeave] = useState(false);
-  const [draft, setDraft] = useState({ word: "", reading: "", meaning: "", type: "godan", typeTouched: false });
+  const [draft, setDraft] = useState({ word: "", reading: "", meaning: "", type: "godan", typeTouched: false, jlpt: "", trans: "", common: null });
 
   useEffect(() => {
     let alive = true;
@@ -1102,7 +1102,10 @@ export default function App() {
   }
 
   function useHit(c) {
-    setDraft({ word: c.word, reading: c.reading, meaning: c.meaning || "", type: c.type, typeTouched: true });
+    setDraft({
+      word: c.word, reading: c.reading, meaning: c.meaning || "", type: c.type, typeTouched: true,
+      jlpt: c.jlpt || "", trans: c.trans || "", common: typeof c.common === "boolean" ? c.common : null,
+    });
     setHits(null);
     setQ2("");
     setLookErr(null);
@@ -1134,17 +1137,22 @@ export default function App() {
   function addWord() {
     const word = draft.word.trim();
     if (!word) return;
+    const tags = {};
+    if (draft.jlpt) tags.jlpt = draft.jlpt;
+    if (draft.trans) tags.trans = draft.trans;
+    if (draft.common !== null) tags.common = draft.common;
     const entry = {
       id: "w" + Date.now(),
       word,
       reading: (draft.reading.trim() || word),
       meaning: draft.meaning.trim(),
       type: draft.type,
+      ...tags,
       addedAt: Date.now(),
     };
     setWords((ws) => [entry, ...ws]);
     setSelId(entry.id);
-    setDraft({ word: "", reading: "", meaning: "", type: "godan", typeTouched: false });
+    setDraft({ word: "", reading: "", meaning: "", type: "godan", typeTouched: false, jlpt: "", trans: "", common: null });
     closeAdd();
     revealStage();
   }
@@ -1417,6 +1425,21 @@ export default function App() {
                   ))}
                 </div>
               </div>
+              <select className="kd-in" value={draft.jlpt} onChange={(e) => updateDraft({ jlpt: e.target.value })}>
+                <option value="">JLPT —</option>
+                {JLPT.map((lv) => <option key={lv} value={lv}>{lv}</option>)}
+              </select>
+              <select className="kd-in" value={draft.trans} onChange={(e) => updateDraft({ trans: e.target.value })}>
+                <option value="">Transitivity —</option>
+                <option value="trans">他動詞 transitive</option>
+                <option value="intrans">自動詞 intransitive</option>
+                <option value="na">n/a</option>
+              </select>
+              <label style={{ fontSize: 11.5, color: C.muted, display: "flex", alignItems: "center", gap: 5 }}>
+                <input type="checkbox" checked={draft.common === true}
+                  onChange={(e) => updateDraft({ common: e.target.checked ? true : null })} />
+                Common
+              </label>
               <button className="kd-btn" onClick={addWord} style={{ background: C.ink, color: C.panel, padding: "9px 0", fontSize: 13, letterSpacing: ".04em" }}>
                 Add to deck
               </button>

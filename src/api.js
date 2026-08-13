@@ -4,7 +4,7 @@ import { TYPES } from "./engine.js";
    NOTE: a key in a browser bundle is visible to anyone who opens devtools. Fine
    for a local tool on your own machine; put a tiny server proxy in front of it
    before this goes anywhere else. */
-const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
+const API_KEY = import.meta.env?.VITE_ANTHROPIC_API_KEY;
 const MODEL = "claude-sonnet-4-6";
 
 async function ask(prompt) {
@@ -35,15 +35,32 @@ Rules:
 - reading: hiragana only (katakana only for loanwords)
 - meaning: short English gloss, under 60 characters, senses separated by semicolons
 - type: exactly one of godan, ichidan, suru, kuru, i-adj, na-adj, noun
+- jlpt: the JLPT level, exactly one of N5, N4, N3, N2, N1 — omit if unsure
+- transitivity: exactly one of transitive, intransitive, n/a (use n/a for adjectives and nouns) — omit if unsure
+- common: true if the word is in everyday use, false if rare or literary
 - If the input is ambiguous (romaji matching several words, e.g. "kaeru"), return up to 3 candidates, most common first
 - If you cannot identify it, return {"candidates":[]}
 Input: `;
+
+const TRANS = { transitive: "trans", intransitive: "intrans", "n/a": "na" };
+
+/** Keep only values we recognise. An unrecognised tag is dropped rather than stored,
+ *  because an absent tag is never used to hide a word but a wrong one would be. */
+export function tagsFromLookup(raw) {
+  const c = raw && typeof raw === "object" ? raw : {};
+  const out = {};
+  if (["N5", "N4", "N3", "N2", "N1"].includes(c.jlpt)) out.jlpt = c.jlpt;
+  if (TRANS[c.transitivity]) out.trans = TRANS[c.transitivity];
+  if (typeof c.common === "boolean") out.common = c.common;
+  return out;
+}
 
 export async function lookupWord(query) {
   const parsed = await ask(LOOKUP_PROMPT + query);
   return (parsed.candidates || [])
     .filter((c) => c && c.word && c.reading && TYPES.some((t) => t.id === c.type))
-    .slice(0, 3);
+    .slice(0, 3)
+    .map((c) => ({ ...c, ...tagsFromLookup(c) }));
 }
 
 export async function fetchExamples(w) {
