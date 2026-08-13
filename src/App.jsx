@@ -83,8 +83,8 @@ function Ladder({ row, active }) {
    AUDIO — Web Speech, no dependency. Reads the kana so the engine
    never has to guess a kanji reading.
    ============================================================ */
-function Say({ text, size = 13, color = C.muted, label = "Play" }) {
-  if (!text) return null;
+function Say({ text, size = 13, color = C.muted, label = "Play", enabled = true }) {
+  if (!text || !enabled) return null;
   return (
     <button className="kd-btn" title={label} aria-label={label}
       onClick={(e) => { e.stopPropagation(); speak(text); }}
@@ -98,7 +98,7 @@ function Say({ text, size = 13, color = C.muted, label = "Play" }) {
    MORPHEME STRIP — shared by the study view, the stack builder
    and the quiz reveal.
    ============================================================ */
-function Strip({ segs, script, size = "clamp(21px, 6.4vw, 32px)", ruby = "clamp(8px, 2.2vw, 11px)", onPick, activeIdx }) {
+function Strip({ segs, script, size = "clamp(21px, 6.4vw, 32px)", ruby = "clamp(8px, 2.2vw, 11px)", onPick, activeIdx, glosses: showGlosses = true }) {
   return (
     <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "flex-end" }}>
       {segs.map((s, i) => {
@@ -115,11 +115,13 @@ function Strip({ segs, script, size = "clamp(21px, 6.4vw, 32px)", ruby = "clamp(
             }}>
               <Word text={s.text} kana={s.kana} mode={script} ruby={ruby} rubyColor={col} reserve />
             </div>
-            <div style={{
-              fontFamily: MONO, fontSize: 8, letterSpacing: ".1em", marginTop: 4,
-              color: on ? C.panel : col, background: on ? col : "transparent",
-              border: "1px solid " + col, padding: "1px 4px",
-            }}>{s.gloss}</div>
+            {showGlosses && (
+              <div style={{
+                fontFamily: MONO, fontSize: 8, letterSpacing: ".1em", marginTop: 4,
+                color: on ? C.panel : col, background: on ? col : "transparent",
+                border: "1px solid " + col, padding: "1px 4px",
+              }}>{s.gloss}</div>
+            )}
           </Tag>
         );
       })}
@@ -136,7 +138,7 @@ function applyChain(word, chain) {
   return st;
 }
 
-function StackPanel({ word, script }) {
+function StackPanel({ word, script, settings }) {
   const [chain, setChain] = useState([]);
   const [pick, setPick] = useState(null);
   const st = useMemo(() => applyChain(word, chain), [word, chain.join(",")]); // eslint-disable-line
@@ -183,10 +185,12 @@ function StackPanel({ word, script }) {
       {/* result */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <Strip segs={st.segs} script={script} onPick={setPick} activeIdx={pick} />
-          <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted, marginTop: 7 }}>{romaji(kana)}</div>
+          <Strip segs={st.segs} script={script} onPick={setPick} activeIdx={pick} glosses={settings.show.glosses} />
+          {settings.show.romaji && (
+            <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted, marginTop: 7 }}>{romaji(kana)}</div>
+          )}
         </div>
-        <Say text={kana} size={15} label="Play this form" />
+        <Say text={kana} size={15} label="Play this form" enabled={settings.show.audio} />
       </div>
 
       {active && (
@@ -244,7 +248,7 @@ function detectForm(sentence, forms) {
   return best;
 }
 
-function ExamplesPanel({ word, script, onSave }) {
+function ExamplesPanel({ word, script, onSave, settings }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const forms = useMemo(() => conjugate(word), [word]);
@@ -303,7 +307,7 @@ function ExamplesPanel({ word, script, onSave }) {
                 <div style={{ fontFamily: MINCHO, fontSize: "clamp(15px, 4.4vw, 18px)", lineHeight: 1.5, flex: 1 }}>
                   {script === "kana" ? e.kana : e.ja}
                 </div>
-                <Say text={e.kana} label="Play sentence" />
+                <Say text={e.kana} label="Play sentence" enabled={settings.show.audio} />
               </div>
               <div style={{ fontSize: 12, color: C.muted, marginTop: 3, lineHeight: 1.5 }}>{e.en}</div>
             </div>
@@ -456,7 +460,7 @@ function ConfirmModal({ eyebrow, stat, statLabel, body, confirmLabel, cancelLabe
 /* ============================================================
    QUIZ
    ============================================================ */
-function Quiz({ words, script, onProgress }) {
+function Quiz({ words, script, onProgress, settings }) {
   /* A conjugation drill should not double as a kanji-reading drill by accident,
      so the reading stays visible here even when the deck is set to 漢字 only. */
   const qMode = script === "kana" ? "kana" : "furigana";
@@ -829,7 +833,7 @@ function Quiz({ words, script, onProgress }) {
                 ? <Word text={formText(source)} kana={formKana(source)} mode={qMode} ruby="clamp(10px, 3vw, 15px)" />
                 : <Word text={cWord.word} kana={cWord.reading} mode={qMode} ruby="clamp(10px, 3vw, 15px)" />}
           </div>
-          {(isRecog || judged) && <Say text={formKana(target)} size={15} />}
+          {(isRecog || judged) && <Say text={formKana(target)} size={15} enabled={settings.show.audio} />}
         </div>
         <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16 }}>
           {cWord.meaning}
@@ -913,13 +917,17 @@ function Quiz({ words, script, onProgress }) {
                   }}>
                     <Word text={s.text} kana={s.kana} mode={qMode} ruby="clamp(8px, 2.2vw, 11px)" rubyColor={ROLE_COLOR[s.role]} reserve />
                   </div>
-                  <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: ".1em", color: ROLE_COLOR[s.role], marginTop: 4 }}>{s.gloss}</div>
+                  {settings.show.glosses && (
+                    <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: ".1em", color: ROLE_COLOR[s.role], marginTop: 4 }}>{s.gloss}</div>
+                  )}
                 </div>
               ))}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 8 }}>
-              <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted }}>{romaji(formKana(target))}</span>
-              <Say text={formKana(target)} label="Play the answer" />
+              {settings.show.romaji && (
+                <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted }}>{romaji(formKana(target))}</span>
+              )}
+              <Say text={formKana(target)} label="Play the answer" enabled={settings.show.audio} />
             </div>
             {target.note && (
               <div style={{ marginTop: 11, borderLeft: "3px solid " + C.extra, background: C.panelAlt, padding: "8px 10px", fontSize: 12, lineHeight: 1.6 }}>
@@ -1026,13 +1034,14 @@ export default function App() {
 
   const selected = words.find((w) => w.id === selId) || null;
   const forms = useMemo(() => conjugate(selected), [selected]);
+  const shown = useMemo(() => visibleForms(forms, settings), [forms, settings]);
 
   useEffect(() => {
     setSegIdx(null);
-    if (forms.length && !forms.some((f) => f.id === formId)) setFormId(forms[0].id);
-  }, [selId, forms.length]); // eslint-disable-line
+    if (shown.length && !shown.some((f) => f.id === formId)) setFormId(shown[0].id);
+  }, [selId, forms.length, shown]); // eslint-disable-line
 
-  const form = forms.find((f) => f.id === formId) || forms[0] || null;
+  const form = shown.find((f) => f.id === formId) || shown[0] || null;
   const display = form ? form.segs.map((s) => s.text).join("") : "";
   const readingOut = form ? form.segs.map((s) => s.kana).join("") : "";
   const activeSeg = form && segIdx != null ? form.segs[segIdx] : null;
@@ -1288,7 +1297,7 @@ export default function App() {
 
       {view === "quiz" && (
         <div style={{ maxWidth: 1120, margin: "0 auto", padding: 18 }}>
-          <Quiz words={words} script={script} onProgress={setQuizRun} />
+          <Quiz words={words} script={script} onProgress={setQuizRun} settings={settings} />
         </div>
       )}
 
@@ -1479,12 +1488,14 @@ export default function App() {
               {/* entry header */}
               <div style={{ display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap", marginBottom: 4 }}>
                 <div>
-                  <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", color: C.muted }}>{romaji(selected.reading).toUpperCase()}</div>
+                  {settings.show.romaji && (
+                    <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", color: C.muted }}>{romaji(selected.reading).toUpperCase()}</div>
+                  )}
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 4 }}>
                     <div style={{ fontFamily: MINCHO, fontSize: "clamp(26px, 8vw, 34px)" }}>
                       <Word text={selected.word} kana={selected.reading} mode={script} ruby={13} />
                     </div>
-                    <Say text={selected.reading} size={15} label="Play the word" />
+                    <Say text={selected.reading} size={15} label="Play the word" enabled={settings.show.audio} />
                   </div>
                 </div>
                 <div style={{ paddingBottom: 4 }}>
@@ -1512,8 +1523,10 @@ export default function App() {
                         {form.label} <span style={{ fontFamily: MINCHO, letterSpacing: 0, textTransform: "none" }}>{form.jp}</span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
-                        <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>{romaji(readingOut)}</span>
-                        <Say text={readingOut} label="Play this form" />
+                        {settings.show.romaji && (
+                          <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>{romaji(readingOut)}</span>
+                        )}
+                        <Say text={readingOut} label="Play this form" enabled={settings.show.audio} />
                       </div>
                     </div>
 
@@ -1532,12 +1545,16 @@ export default function App() {
                             }}>
                               <Word text={s.text} kana={s.kana} mode={script} ruby="clamp(8px, 2.4vw, 12px)" rubyColor={col} reserve />
                             </div>
-                            <div style={{ fontFamily: MONO, fontSize: 9, color: C.muted, marginTop: 3 }}>{romaji(s.kana)}</div>
-                            <div style={{
-                              fontFamily: MONO, fontSize: 8.5, letterSpacing: ".1em", marginTop: 4,
-                              color: on ? C.panel : col, background: on ? col : "transparent",
-                              border: "1px solid " + col, padding: "2px 5px", whiteSpace: "nowrap",
-                            }}>{s.gloss}</div>
+                            {settings.show.romaji && (
+                              <div style={{ fontFamily: MONO, fontSize: 9, color: C.muted, marginTop: 3 }}>{romaji(s.kana)}</div>
+                            )}
+                            {settings.show.glosses && (
+                              <div style={{
+                                fontFamily: MONO, fontSize: 8.5, letterSpacing: ".1em", marginTop: 4,
+                                color: on ? C.panel : col, background: on ? col : "transparent",
+                                border: "1px solid " + col, padding: "2px 5px", whiteSpace: "nowrap",
+                              }}>{s.gloss}</div>
+                            )}
                           </button>
                         );
                       })}
@@ -1556,7 +1573,7 @@ export default function App() {
                             </div>
                             <div style={{ fontSize: 12.5, lineHeight: 1.65, color: "#3b433e" }}>{activeSeg.body}</div>
                           </div>
-                          {godanRow && ladderActive && (
+                          {settings.show.ladder && godanRow && ladderActive && (
                             <div>
                               <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: ".16em", color: C.muted, marginBottom: 5 }}>
                                 五段 · FIVE ROWS OF {romaji(godanRow).toUpperCase()}
@@ -1587,13 +1604,13 @@ export default function App() {
                 )}
               </div>
 
-              <StackPanel key={selected.id} word={selected} script={script} />
-              <ExamplesPanel word={selected} script={script} onSave={saveExamples} />
+              <StackPanel key={selected.id} word={selected} script={script} settings={settings} />
+              {settings.show.examples && <ExamplesPanel word={selected} script={script} onSave={saveExamples} settings={settings} />}
 
               {/* form ladder */}
               <div style={{ marginTop: 18, display: "grid", gap: 14 }}>
                 {GROUPS.map((grp) => {
-                  const items = forms.filter((f) => f.group === grp);
+                  const items = shown.filter((f) => f.group === grp);
                   if (!items.length) return null;
                   return (
                     <div key={grp}>
@@ -1629,6 +1646,11 @@ export default function App() {
                   );
                 })}
               </div>
+              {shown.length === 0 && (
+                <div style={{ fontSize: 12.5, color: C.muted, border: "1px dashed " + C.rule, padding: "14px 16px" }}>
+                  No forms enabled. Turn some on in Settings.
+                </div>
+              )}
             </>
           )}
         </main>
