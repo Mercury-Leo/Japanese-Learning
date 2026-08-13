@@ -29,7 +29,7 @@ async function ask(prompt) {
 
 const LOOKUP_PROMPT = `You are a Japanese dictionary lookup. The input may be romaji, kana, or kanji.
 Reply with ONLY a JSON object. No markdown fences, no preamble:
-{"candidates":[{"word":"行く","reading":"いく","meaning":"to go","type":"godan"}]}
+{"candidates":[{"word":"行く","reading":"いく","meaning":"to go","type":"godan","jlpt":"N5","transitivity":"intransitive","common":true}]}
 Rules:
 - word: the standard written form, in kanji if the word is normally written that way
 - reading: hiragana only (katakana only for loanwords)
@@ -55,12 +55,20 @@ export function tagsFromLookup(raw) {
   return out;
 }
 
+/** Strip the raw wire tag fields, then re-add only validated ones. A plain merge is not
+ *  enough: jlpt and common collide with the wire field names, so an invalid value would
+ *  survive and hide the word from every scope with no way to undo it. */
+export function candidateWithTags(c) {
+  const { jlpt, transitivity, common, ...rest } = c;
+  return { ...rest, ...tagsFromLookup({ jlpt, transitivity, common }) };
+}
+
 export async function lookupWord(query) {
   const parsed = await ask(LOOKUP_PROMPT + query);
   return (parsed.candidates || [])
     .filter((c) => c && c.word && c.reading && TYPES.some((t) => t.id === c.type))
     .slice(0, 3)
-    .map((c) => ({ ...c, ...tagsFromLookup(c) }));
+    .map(candidateWithTags);
 }
 
 export async function fetchExamples(w) {

@@ -9,7 +9,7 @@ import {
   SEED, TYPES,
 } from "../src/engine.js";
 import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope } from "../src/settings.js";
-import { tagsFromLookup } from "../src/api.js";
+import { tagsFromLookup, candidateWithTags } from "../src/api.js";
 
 let pass = 0, fail = 0;
 const eq = (got, want, label) => {
@@ -205,6 +205,15 @@ eq(JSON.stringify(tagsFromLookup({})), JSON.stringify({}), "absent tags stay abs
 eq(JSON.stringify(tagsFromLookup(null)), JSON.stringify({}), "a null payload is safe");
 eq(tagsFromLookup({ transitivity: "n/a" }).trans, "na", "n/a maps to na");
 eq(tagsFromLookup({ transitivity: "intransitive" }).trans, "intrans", "intransitive maps to intrans");
+
+// The validated tags used to be merged OVER the raw candidate, so an invalid jlpt survived
+// by key collision and permanently hid the word from every scope. Strip, then re-add.
+const badCand = { word: "泳ぐ", reading: "およぐ", meaning: "to swim", type: "godan", jlpt: "N9", transitivity: "maybe", common: "yes" };
+eq("jlpt" in candidateWithTags(badCand), false, "an invalid jlpt is stripped, never stored");
+eq("common" in candidateWithTags(badCand), false, "an invalid common is stripped");
+eq("transitivity" in candidateWithTags(badCand), false, "the raw wire field never survives");
+eq(candidateWithTags(badCand).word, "泳ぐ", "non-tag fields are preserved");
+eq(candidateWithTags({ ...badCand, jlpt: "N4" }).jlpt, "N4", "a valid jlpt still comes through");
 
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so
