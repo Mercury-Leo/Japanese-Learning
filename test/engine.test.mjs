@@ -7,6 +7,7 @@ import {
   romaji, toKana, settleKana, conjugate, detectType,
   stackInit, stackApply, answerMatches, columns, formText,
 } from "../src/engine.js";
+import { DEFAULTS, PRESETS, applyPreset, mergeSettings } from "../src/settings.js";
 
 let pass = 0, fail = 0;
 const eq = (got, want, label) => {
@@ -98,6 +99,30 @@ group("homographs");
 const tf = conjugate(W("食べる", "たべる", "ichidan"));
 eq(formText(tf.find((f) => f.id === "pot")), formText(tf.find((f) => f.id === "pass")),
    "食べられる is both potential and passive");
+
+/* ---------------- learning settings ---------------- */
+group("learning settings");
+// DEFAULTS and the Beginner preset must be the same place. Two separately-tuned
+// lists produce a first run that silently differs from pressing Beginner.
+eq(DEFAULTS.formIds.join(","), PRESETS.Beginner.formIds.join(","), "DEFAULTS forms are the Beginner preset");
+eq(DEFAULTS.types.length, 7, "Beginner keeps all 7 word classes — narrowing them would drop 静か from the seed deck");
+eq(DEFAULTS.commonOnly, false, "nothing is hidden by frequency until asked");
+eq(DEFAULTS.show.glosses, true, "display flags default on");
+
+// A preset is content only. Stomping display or frequency preferences is a bug.
+const tweaked = { ...DEFAULTS, commonOnly: true, show: { ...DEFAULTS.show, audio: false } };
+const after = applyPreset("Everything", tweaked);
+eq(after.commonOnly, true, "preset leaves commonOnly alone");
+eq(after.show.audio, false, "preset leaves show flags alone");
+eq(after.formIds.length > DEFAULTS.formIds.length, true, "Everything widens the form list");
+
+// A partial or junk payload must never yield undefined arrays.
+eq(mergeSettings({}).formIds.length, DEFAULTS.formIds.length, "empty stored object falls back to defaults");
+eq(mergeSettings({ formIds: ["te"] }).formIds.join(","), "te", "stored value wins");
+eq(mergeSettings({ formIds: ["te"] }).types.length, 7, "missing key falls back");
+eq(mergeSettings(null).jlpt.length, 2, "null payload falls back");
+eq(mergeSettings({ formIds: "nonsense" }).formIds.length, DEFAULTS.formIds.length, "non-array is rejected");
+eq(mergeSettings({ show: { audio: false } }).show.glosses, true, "show is merged key-by-key, not replaced");
 
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so

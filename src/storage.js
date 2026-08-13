@@ -2,6 +2,7 @@
    same job — kept behind the same async shape so App.jsx is unchanged. */
 export const KEY = "kotoba-deck-v1";
 export const SKEY = "kotoba-script-v1";
+export const GKEY = "kotoba-settings-v1";
 
 export const storage = {
   async get(key) {
