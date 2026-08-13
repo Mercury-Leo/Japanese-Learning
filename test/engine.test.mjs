@@ -204,13 +204,20 @@ const decomment = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\
 const names = (src, re) => (src.match(re)?.[1] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
 const appSrc = read("../src/App.jsx");
-const exported = names(decomment(read("../src/engine.js")), /export \{([^{}]*?)\}/);
-const imported = names(appSrc, /import \{([^{}]*?)\} from "\.\/engine\.js"/);
 const appCode = decomment(appSrc);
-eq(exported.length > 0 && imported.length > 0, true, "found both the engine export list and App.jsx's import of it");
-for (const name of exported)
-  if (new RegExp(`\\b${name}\\b`).test(appCode))
-    eq(imported.includes(name), true, `App.jsx references ${name} but does not import it from engine.js`);
+const modules = [
+  ["engine.js", /import \{([^{}]*?)\} from "\.\/engine\.js"/],
+  ["settings.js", /import \{([^{}]*?)\} from "\.\/settings\.js"/],
+];
+for (const [file, importRe] of modules) {
+  const exported = names(decomment(read("../src/" + file)), /export \{([^{}]*?)\}/)
+    .concat([...decomment(read("../src/" + file)).matchAll(/export (?:const|function) (\w+)/g)].map((m) => m[1]));
+  const imported = names(appSrc, importRe);
+  eq(exported.length > 0, true, `found the export list of ${file}`);
+  for (const name of exported)
+    if (new RegExp(`\\b${name}\\b`).test(appCode))
+      eq(imported.includes(name), true, `App.jsx references ${name} but does not import it from ${file}`);
+}
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

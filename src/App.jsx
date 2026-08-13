@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Plus, Trash2, X, Search, Volume2, Undo2, Download, Upload } from "lucide-react";
 
 import { C, ROLE_COLOR, MINCHO, SANS, MONO } from "./theme.js";
-import { storage, KEY, SKEY } from "./storage.js";
+import { storage, KEY, SKEY, GKEY } from "./storage.js";
 import { SPEECH_OK, speak, useSpeechStatus, setAudioReporter } from "./speech.js";
 import { lookupWord, fetchExamples } from "./api.js";
 import {
@@ -10,6 +10,7 @@ import {
   MODS, stackInit, stackApply, columns, formText, formKana, answerMatches,
   shuffle, shuffleStable, REVERSE_SOURCES, SEED,
 } from "./engine.js";
+import { DEFAULTS, mergeSettings, visibleForms, visibleMods, wordInScope, allForms, PRESETS, applyPreset, JLPT } from "./settings.js";
 
 /* ============================================================
    SCRIPT RENDERING — furigana / kanji / kana
@@ -943,6 +944,7 @@ export default function App() {
   const [segIdx, setSegIdx] = useState(null);
   const [adding, setAdding] = useState(false);
   const [script, setScript] = useState("furigana");
+  const [settings, setSettings] = useState(DEFAULTS);
   const [q2, setQ2] = useState("");
   const [looking, setLooking] = useState(false);
   const [hits, setHits] = useState(null);
@@ -968,6 +970,10 @@ export default function App() {
         const p = await storage.get(SKEY);
         pref = JSON.parse(p.value);
       } catch { pref = null; }
+      try {
+        const g = await storage.get(GKEY);
+        setSettings(mergeSettings(JSON.parse(g.value)));
+      } catch { /* first run — DEFAULTS stand */ }
       if (!alive) return;
       const list = Array.isArray(loaded) && loaded.length ? loaded : SEED;
       setWords(list);
@@ -991,6 +997,13 @@ export default function App() {
       try { await storage.set(SKEY, JSON.stringify(script)); } catch { /* session-only */ }
     })();
   }, [script, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    (async () => {
+      try { await storage.set(GKEY, JSON.stringify(settings)); } catch { /* session-only */ }
+    })();
+  }, [settings, ready]);
 
   useEffect(() => {
     setAudioReporter(setAudioNote);
