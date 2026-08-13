@@ -88,3 +88,22 @@ export function mergeSettings(stored) {
     show: { ...DEFAULTS.show, ...(s.show && typeof s.show === "object" ? s.show : {}) },
   };
 }
+
+export const visibleForms = (forms, settings) => forms.filter((f) => settings.formIds.includes(f.id));
+
+export const visibleMods = (settings) => MODS.filter((m) => settings.modIds.includes(m.id));
+
+/** Is this word inside the learner's chosen scope?
+ *
+ *  A word is NEVER hidden by a filter it has no data for. That is what lets an
+ *  existing deck — which has none of these tags — keep working untouched, and it
+ *  is why this feature needs no migration code. Tightening this into strict
+ *  matching would silently empty somebody's deck. */
+export function wordInScope(word, settings) {
+  if (!settings.types.includes(word.type)) return false;
+  if (word.jlpt && !settings.jlpt.includes(word.jlpt)) return false;
+  const t = word.trans;
+  if ((t === "trans" || t === "intrans") && !settings.trans.includes(t)) return false;
+  if (settings.commonOnly && word.common === false) return false;
+  return true;
+}

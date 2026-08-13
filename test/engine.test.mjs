@@ -7,7 +7,7 @@ import {
   romaji, toKana, settleKana, conjugate, detectType,
   stackInit, stackApply, answerMatches, columns, formText,
 } from "../src/engine.js";
-import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings } from "../src/settings.js";
+import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope } from "../src/settings.js";
 
 let pass = 0, fail = 0;
 const eq = (got, want, label) => {
@@ -137,6 +137,38 @@ for (const id of ["da", "janai", "datta", "jaarimasen", "attr", "nara"])
 for (const g of ["Plain", "Polite", "Connective", "Derived"])
   eq(AF.some((f) => f.group === g), true, `allForms spans the ${g} group`);
 eq(AF.every((f) => !!f.label), true, "every form carries a label for the settings chip");
+
+// visibleForms, visibleMods, wordInScope
+const S = { ...DEFAULTS, formIds: ["dict", "te"], modIds: ["neg"], jlpt: ["N5"], trans: ["trans"], types: DEFAULTS.types };
+const iku = conjugate(W("行く", "いく", "godan"));
+eq(visibleForms(iku, S).map((f) => f.id).join(","), "dict,te", "visibleForms keeps exactly the enabled ids");
+eq(visibleForms(iku, { ...S, formIds: [] }).length, 0, "an empty form list yields nothing to render");
+eq(visibleMods(S).map((m) => m.id).join(","), "neg", "visibleMods filters the stack modifiers");
+
+// THE UNKNOWN RULE. An untagged word is what an existing saved deck looks like,
+// and it must survive every filter combination — this is why no migration exists.
+const bare = { word: "犬", reading: "いぬ", type: "noun" };
+eq(wordInScope(bare, S), true, "an untagged word passes a narrow jlpt filter");
+eq(wordInScope(bare, { ...S, commonOnly: true }), true, "an untagged word passes commonOnly");
+eq(wordInScope(bare, { ...S, trans: [] }), true, "an untagged word passes an empty transitivity filter");
+eq(wordInScope(bare, { ...S, jlpt: [] }), true, "an untagged word passes an empty jlpt filter");
+
+// Word class always applies — type is never absent.
+eq(wordInScope(bare, { ...S, types: ["godan"] }), false, "word class is filtered strictly");
+
+// jlpt: present must match, absent passes.
+eq(wordInScope({ ...bare, jlpt: "N5" }, S), true, "N5 word passes an N5 filter");
+eq(wordInScope({ ...bare, jlpt: "N2" }, S), false, "N2 word fails an N5 filter");
+
+// transitivity: only trans/intrans are filtered; "na" and absent always pass.
+eq(wordInScope({ ...bare, trans: "trans" }, S), true, "transitive passes when enabled");
+eq(wordInScope({ ...bare, trans: "intrans" }, S), false, "intransitive fails when disabled");
+eq(wordInScope({ ...bare, trans: "na" }, { ...S, trans: [] }), true, "n/a is never filtered");
+
+// commonOnly hides only an explicit false.
+eq(wordInScope({ ...bare, common: false }, { ...S, commonOnly: true }), false, "commonOnly hides a rare word");
+eq(wordInScope({ ...bare, common: true }, { ...S, commonOnly: true }), true, "commonOnly keeps a common word");
+eq(wordInScope({ ...bare, common: false }, S), true, "a rare word shows when commonOnly is off");
 
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so
