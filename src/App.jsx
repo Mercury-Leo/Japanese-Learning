@@ -483,6 +483,10 @@ function Quiz({ words, script, onProgress, settings }) {
   const [input, setInput] = useState("");
   const [judged, setJudged] = useState(null);
 
+  useEffect(() => {
+    setFormIds((ids) => ids.filter((id) => settings.formIds.includes(id)));
+  }, [settings.formIds]);
+
   const pool = words.filter((w) => picked.has(w.id));
   const poolKey = pool.map((w) => w.id).join(",");
 
@@ -497,8 +501,8 @@ function Quiz({ words, script, onProgress, settings }) {
         else m.set(f.id, { id: f.id, label: f.label, jp: f.jp, group: f.group, n: 1 });
       }
     }
-    return [...m.values()];
-  }, [poolKey]); // eslint-disable-line
+    return [...m.values()].filter((f) => settings.formIds.includes(f.id));
+  }, [poolKey, settings.formIds.join(",")]); // eslint-disable-line
 
   const items = useMemo(() => {
     const out = [];
@@ -712,6 +716,11 @@ function Quiz({ words, script, onProgress, settings }) {
               }}>
               {total === 0 ? "Pick words and forms to begin" : "Start · " + (len === 0 || len > total ? total : len) + " question" + ((len === 0 || len > total ? total : len) === 1 ? "" : "s")}
             </button>
+            {available.length === 0 && (
+              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>
+                No forms available. Enable some in Settings, or pick more words.
+              </div>
+            )}
             {total > 0 && (
               <div style={{ fontSize: 11, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>
                 {total} available from {pool.length} word{pool.length === 1 ? "" : "s"}. Answer in kanji, kana, or romaji.
@@ -1304,7 +1313,7 @@ export default function App() {
 
       {view === "quiz" && (
         <div style={{ maxWidth: 1120, margin: "0 auto", padding: 18 }}>
-          <Quiz words={words} script={script} onProgress={setQuizRun} settings={settings} />
+          <Quiz words={scopedWords} script={script} onProgress={setQuizRun} settings={settings} />
         </div>
       )}
 
