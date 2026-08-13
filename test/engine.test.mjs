@@ -7,7 +7,7 @@ import {
   romaji, toKana, settleKana, conjugate, detectType,
   stackInit, stackApply, answerMatches, columns, formText,
 } from "../src/engine.js";
-import { DEFAULTS, PRESETS, applyPreset, mergeSettings } from "../src/settings.js";
+import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings } from "../src/settings.js";
 
 let pass = 0, fail = 0;
 const eq = (got, want, label) => {
@@ -123,6 +123,20 @@ eq(mergeSettings({ formIds: ["te"] }).types.length, 7, "missing key falls back")
 eq(mergeSettings(null).jlpt.length, 2, "null payload falls back");
 eq(mergeSettings({ formIds: "nonsense" }).formIds.length, DEFAULTS.formIds.length, "non-array is rejected");
 eq(mergeSettings({ show: { audio: false } }).show.glosses, true, "show is merged key-by-key, not replaced");
+
+// The settings panel is built from this list, so a missing id means a form the
+// learner can never turn on.
+const AF = allForms();
+eq(new Set(AF.map((f) => f.id)).size, AF.length, "allForms has no duplicate ids");
+for (const id of ["dict", "nai", "ta", "masu", "te", "pot", "caus", "tai"])
+  eq(AF.some((f) => f.id === id), true, `allForms includes the verb form ${id}`);
+for (const id of ["desu", "kunaidesu", "kattadesu", "adv", "sou"])
+  eq(AF.some((f) => f.id === id), true, `allForms includes the い-adjective form ${id}`);
+for (const id of ["da", "janai", "datta", "jaarimasen", "attr", "nara"])
+  eq(AF.some((f) => f.id === id), true, `allForms includes the copula form ${id}`);
+for (const g of ["Plain", "Polite", "Connective", "Derived"])
+  eq(AF.some((f) => f.group === g), true, `allForms spans the ${g} group`);
+eq(AF.every((f) => !!f.label), true, "every form carries a label for the settings chip");
 
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so
