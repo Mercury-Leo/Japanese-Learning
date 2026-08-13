@@ -59,7 +59,7 @@ export function tagsFromLookup(raw) {
  *  enough: jlpt and common collide with the wire field names, so an invalid value would
  *  survive and hide the word from every scope with no way to undo it. */
 export function candidateWithTags(c) {
-  const { jlpt, transitivity, common, ...rest } = c;
+  const { jlpt, transitivity, common, trans, ...rest } = c;
   return { ...rest, ...tagsFromLookup({ jlpt, transitivity, common }) };
 }
 

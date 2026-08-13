@@ -10,7 +10,7 @@ import {
   MODS, stackInit, stackApply, columns, formText, formKana, answerMatches,
   shuffle, shuffleStable, REVERSE_SOURCES, SEED,
 } from "./engine.js";
-import { DEFAULTS, mergeSettings, visibleForms, visibleMods, wordInScope, allForms, PRESETS, applyPreset, JLPT } from "./settings.js";
+import { DEFAULTS, mergeSettings, visibleForms, visibleMods, wordInScope, JLPT } from "./settings.js";
 import SettingsView from "./SettingsView.jsx";
 
 /* ============================================================
@@ -374,6 +374,9 @@ function DeckTools({ words, onImport }) {
             type: TYPES.some((t) => t.id === w.type) ? w.type : detectType(w.word, w.reading || w.word),
             examples: Array.isArray(w.examples) ? w.examples.slice(0, 5) : undefined,
             addedAt: Number(w.addedAt) || Date.now(),
+            ...(JLPT.includes(w.jlpt) ? { jlpt: w.jlpt } : {}),
+            ...(["trans", "intrans", "na"].includes(w.trans) ? { trans: w.trans } : {}),
+            ...(typeof w.common === "boolean" ? { common: w.common } : {}),
           }));
         if (!clean.length) throw new Error("empty");
         const added = onImport(clean);
@@ -654,7 +657,7 @@ function Quiz({ words, script, onProgress, settings }) {
             <span style={micro}>Forms to drill</span>
             <span style={{ flex: 1, height: 1, background: C.ruleSoft }} />
           </div>
-          {available.length === 0 ? (
+          {pool.length === 0 ? (
             <div style={{ fontSize: 12, color: C.muted }}>Pick at least one word to see which forms are available.</div>
           ) : (
             GROUPS.map((grp) => {
@@ -1055,7 +1058,7 @@ export default function App() {
   useEffect(() => {
     setSegIdx(null);
     if (shown.length && !shown.some((f) => f.id === formId)) setFormId(shown[0].id);
-  }, [selId, forms.length, shown]); // eslint-disable-line
+  }, [selId, shown.map((f) => f.id).join(",")]); // eslint-disable-line
 
   const form = shown.find((f) => f.id === formId) || shown[0] || null;
   const display = form ? form.segs.map((s) => s.text).join("") : "";
@@ -1640,7 +1643,7 @@ export default function App() {
                     </div>
                   </>
                 )}
-                {!form && (
+                {!form && forms.length === 0 && (
                   <div style={{ fontSize: 13, color: C.muted }}>
                     No forms for this entry. Check the reading is written in kana, then pick the right word class above.
                   </div>
@@ -1689,7 +1692,7 @@ export default function App() {
                   );
                 })}
               </div>
-              {shown.length === 0 && (
+              {forms.length > 0 && shown.length === 0 && (
                 <div style={{ fontSize: 12.5, color: C.muted, border: "1px dashed " + C.rule, padding: "14px 16px" }}>
                   No forms enabled. Turn some on in Settings.
                 </div>

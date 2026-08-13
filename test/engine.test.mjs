@@ -214,6 +214,8 @@ eq("common" in candidateWithTags(badCand), false, "an invalid common is stripped
 eq("transitivity" in candidateWithTags(badCand), false, "the raw wire field never survives");
 eq(candidateWithTags(badCand).word, "泳ぐ", "non-tag fields are preserved");
 eq(candidateWithTags({ ...badCand, jlpt: "N4" }).jlpt, "N4", "a valid jlpt still comes through");
+eq("trans" in candidateWithTags({ word: "泳ぐ", reading: "およぐ", type: "godan", trans: "garbage" }), false,
+   "a raw internal `trans` key from a lookup is stripped too, not just `transitivity`");
 
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so

@@ -6,7 +6,7 @@ const micro = { fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", textTransf
 
 function Chip({ on, onClick, accent = C.aux, children }) {
   return (
-    <button className="kd-btn kd-form-chip" onClick={onClick}
+    <button className="kd-btn kd-form-chip" onClick={onClick} aria-pressed={on}
       style={{
         border: "1px solid " + (on ? accent : C.rule),
         background: on ? accent : "transparent",
