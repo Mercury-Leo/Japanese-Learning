@@ -386,14 +386,16 @@ const TYPES = [
 const typeLabel = (id) => TYPES.find((t) => t.id === id)?.jp ?? "";
 
 
+/* jlpt / trans / common feed the scope filters in settings.js. All three are
+   optional everywhere: an untagged word is never filtered out. */
 const SEED = [
-  { word: "行く", reading: "いく", meaning: "to go", type: "godan" },
-  { word: "食べる", reading: "たべる", meaning: "to eat", type: "ichidan" },
-  { word: "飲む", reading: "のむ", meaning: "to drink", type: "godan" },
-  { word: "勉強する", reading: "べんきょうする", meaning: "to study", type: "suru" },
-  { word: "来る", reading: "くる", meaning: "to come", type: "kuru" },
-  { word: "高い", reading: "たかい", meaning: "expensive; tall", type: "i-adj" },
-  { word: "静か", reading: "しずか", meaning: "quiet", type: "na-adj" },
+  { word: "行く", reading: "いく", meaning: "to go", type: "godan", jlpt: "N5", trans: "intrans", common: true },
+  { word: "食べる", reading: "たべる", meaning: "to eat", type: "ichidan", jlpt: "N5", trans: "trans", common: true },
+  { word: "飲む", reading: "のむ", meaning: "to drink", type: "godan", jlpt: "N5", trans: "trans", common: true },
+  { word: "勉強する", reading: "べんきょうする", meaning: "to study", type: "suru", jlpt: "N5", trans: "trans", common: true },
+  { word: "来る", reading: "くる", meaning: "to come", type: "kuru", jlpt: "N5", trans: "intrans", common: true },
+  { word: "高い", reading: "たかい", meaning: "expensive; tall", type: "i-adj", jlpt: "N5", trans: "na", common: true },
+  { word: "静か", reading: "しずか", meaning: "quiet", type: "na-adj", jlpt: "N5", trans: "na", common: true },
 ].map((w, i) => ({ ...w, id: "seed" + i, addedAt: Date.now() - (7 - i) * 86400000 }));
 
 

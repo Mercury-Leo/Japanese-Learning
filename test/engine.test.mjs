@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import {
   romaji, toKana, settleKana, conjugate, detectType,
   stackInit, stackApply, answerMatches, columns, formText,
+  SEED, TYPES,
 } from "../src/engine.js";
 import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope } from "../src/settings.js";
 
@@ -169,6 +170,21 @@ eq(wordInScope({ ...bare, trans: "na" }, { ...S, trans: [] }), true, "n/a is nev
 eq(wordInScope({ ...bare, common: false }, { ...S, commonOnly: true }), false, "commonOnly hides a rare word");
 eq(wordInScope({ ...bare, common: true }, { ...S, commonOnly: true }), true, "commonOnly keeps a common word");
 eq(wordInScope({ ...bare, common: false }, S), true, "a rare word shows when commonOnly is off");
+
+eq(SEED.length, 7, "seed deck still has 7 words");
+eq(SEED.every((w) => w.jlpt && w.trans && typeof w.common === "boolean"), true, "every seed word is tagged");
+eq(SEED.filter((w) => w.trans === "na").length, 2, "高い and 静か are not verbs, so transitivity is n/a");
+eq(SEED.every((w) => wordInScope(w, DEFAULTS)), true, "a first run shows all 7 seed words — none silently vanish");
+
+// A preset that leaves some word class with nothing to show is a blank screen.
+for (const name of Object.keys(PRESETS)) {
+  const s = applyPreset(name, DEFAULTS);
+  for (const t of TYPES.map((x) => x.id)) {
+    if (!s.types.includes(t)) continue;
+    const rep = { word: "食べる", reading: "たべる", type: t };
+    eq(visibleForms(conjugate(rep), s).length > 0, true, `preset ${name} leaves ${t} at least one visible form`);
+  }
+}
 
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so
