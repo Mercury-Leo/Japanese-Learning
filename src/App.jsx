@@ -11,6 +11,7 @@ import {
   shuffle, shuffleStable, REVERSE_SOURCES, SEED,
 } from "./engine.js";
 import { DEFAULTS, mergeSettings, visibleForms, visibleMods, wordInScope, allForms, PRESETS, applyPreset, JLPT } from "./settings.js";
+import SettingsView from "./SettingsView.jsx";
 
 /* ============================================================
    SCRIPT RENDERING — furigana / kanji / kana
@@ -1086,15 +1087,16 @@ export default function App() {
    *  but only once a quiz is actually underway. */
   function goto(next) {
     if (next === view) return;
-    if (next === "deck" && quizRun.running) { setPendingLeave(true); return; }
+    if (next !== "quiz" && quizRun.running) { setPendingLeave(next); return; }
     setPendingLeave(false);
     setView(next);
   }
 
   function leaveQuiz() {
+    const dest = typeof pendingLeave === "string" ? pendingLeave : "deck";
     setPendingLeave(false);
     setQuizRun({ running: false, done: 0, total: 0 });
-    setView("deck");
+    setView(dest);
   }
 
   function closeAdd() {
@@ -1231,14 +1233,14 @@ export default function App() {
             Kotoba-chō · word deck &amp; morphology
           </div>
           <div style={{ display: "flex", border: "1px solid " + C.rule }}>
-            {[["deck", "Deck"], ["quiz", "Quiz"]].map(([id, label]) => {
+            {[["deck", "Deck"], ["quiz", "Quiz"], ["settings", "Settings"]].map(([id, label]) => {
               const on = view === id;
               return (
                 <button key={id} className="kd-btn kd-form-chip" onClick={() => goto(id)}
                   style={{
                     fontFamily: MONO, fontSize: 10, letterSpacing: ".16em", padding: "6px 12px",
                     background: on ? C.stem : "transparent", color: on ? C.panel : C.muted,
-                    borderRight: id === "quiz" ? "none" : "1px solid " + C.rule,
+                    borderRight: id === "settings" ? "none" : "1px solid " + C.rule,
                   }}>{label.toUpperCase()}</button>
               );
             })}
@@ -1275,8 +1277,8 @@ export default function App() {
           stat={quizRun.done + " / " + quizRun.total}
           statLabel={quizRun.done === 1 ? "question answered" : "questions answered"}
           body={quizRun.done > 0
-            ? "Going back to the deck ends this run. The score is not saved anywhere yet, so it goes with it."
-            : "Going back to the deck ends this run before you've answered anything."}
+            ? "Leaving the quiz ends this run. The score is not saved anywhere yet, so it goes with it."
+            : "Leaving the quiz ends this run before you've answered anything."}
           confirmLabel="Leave"
           cancelLabel="Keep going"
           onConfirm={leaveQuiz}
@@ -1284,11 +1286,22 @@ export default function App() {
         />
       )}
 
-      {view === "quiz" ? (
+      {view === "quiz" && (
         <div style={{ maxWidth: 1120, margin: "0 auto", padding: 18 }}>
           <Quiz words={words} script={script} onProgress={setQuizRun} />
         </div>
-      ) : (
+      )}
+
+      {view === "settings" && (
+        <SettingsView
+          settings={settings}
+          onChange={setSettings}
+          wordCount={words.length}
+          formCount={settings.formIds.length}
+        />
+      )}
+
+      {view === "deck" && (
       <div style={{ maxWidth: 1120, margin: "0 auto", padding: 18, display: "flex", gap: 22, alignItems: "flex-start", flexWrap: "wrap" }}>
         {/* ---------------- deck ---------------- */}
         <aside className="kd-deck">
