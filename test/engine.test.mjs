@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import {
   romaji, toKana, settleKana, conjugate, detectType,
   stackInit, stackApply, answerMatches, columns, formText, meaningItems,
-  SEED, TYPES,
+  teRule, SEED, TYPES,
 } from "../src/engine.js";
 import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope } from "../src/settings.js";
 import { tagsFromLookup, candidateWithTags, rankMatches } from "../src/api.js";
@@ -286,6 +286,26 @@ eq(meaningItems(pair, pair).length, 0, "a two-word deck cannot fill a choice, so
 const dup = [V("a", "library"), V("b", "library"), V("c", "school"), V("d", "station")];
 eq(meaningItems([dup[0]], dup).every((i) => !i.opts.includes("b")), true,
    "a same-gloss word is never offered as a wrong answer");
+
+/* ---------------- te rules ---------------- */
+// The whole point of the stats feature is aggregating along the grammar, so a
+// misfiled rule silently merges two different lessons into one number.
+group("te rules");
+const rule = (w) => (teRule(w) || {}).id;
+eq(rule(W("買う", "かう", "godan")), "godan.te.sokuon", "う takes っ");
+eq(rule(W("待つ", "まつ", "godan")), "godan.te.sokuon", "つ takes っ");
+eq(rule(W("帰る", "かえる", "godan")), "godan.te.sokuon", "godan る takes っ");
+eq(rule(W("書く", "かく", "godan")), "godan.te.ionbin", "く takes い");
+eq(rule(W("泳ぐ", "およぐ", "godan")), "godan.te.ionbin", "ぐ is イ音便 too, voiced — same rule as く");
+eq(rule(W("話す", "はなす", "godan")), "godan.te.su", "す is the plain い-stem, not an 音便");
+eq(rule(W("死ぬ", "しぬ", "godan")), "godan.te.hatsuon", "ぬ goes nasal");
+eq(rule(W("遊ぶ", "あそぶ", "godan")), "godan.te.hatsuon", "ぶ goes nasal");
+eq(rule(W("飲む", "のむ", "godan")), "godan.te.hatsuon", "む goes nasal");
+eq(rule(W("行く", "いく", "godan")), "godan.te.iku", "行く is its own rule, not the く rule");
+eq(teRule(W("食べる", "たべる", "ichidan")), null, "ichidan has no euphonic rule");
+eq(teRule(W("勉強する", "べんきょうする", "suru")), null, "suru has no euphonic rule");
+eq(teRule(W("高い", "たかい", "i-adj")), null, "i-adj has no euphonic rule");
+eq(teRule(W("飲む", "のむ", "godan")).jp, "撥音便", "the label names the 音便 for display");
 
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so

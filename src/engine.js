@@ -145,6 +145,37 @@ const ONBIN = {
   ぶ: "ぬ・ぶ・む become ん and voice the ending: 遊ぶ→遊んで.",
   む: "ぬ・ぶ・む become ん and voice the ending: 飲む→飲んで.",
 };
+
+/* Which euphonic rule a godan verb's て-family forms use. Derived on demand and
+   never stored, so refining this taxonomy reclassifies old results for free.
+   There are exactly three 音便 — イ, 促, 撥. す is not one of them: 話す→話して is
+   the plain い-stem plus て with no sound change, which is why it is labelled as
+   the regular case rather than invented into a fourth 音便. */
+const TE_RULE = {
+  う: "sokuon", つ: "sokuon", る: "sokuon",
+  く: "ionbin", ぐ: "ionbin",
+  す: "su",
+  ぬ: "hatsuon", ぶ: "hatsuon", む: "hatsuon",
+};
+const TE_RULE_LABEL = {
+  sokuon: { label: "う・つ・る → って", jp: "促音便" },
+  ionbin: { label: "く・ぐ → いて／いで", jp: "イ音便" },
+  su: { label: "す → して", jp: "い-stem" },
+  hatsuon: { label: "ぬ・ぶ・む → んで", jp: "撥音便" },
+  iku: { label: "行く irregular", jp: "音便例外" },
+};
+
+function teRule(word) {
+  if (!word || word.type !== "godan") return null;
+  const reading = word.reading || word.word;
+  /* Same test buildGodan uses, so the two can never disagree about 行く. */
+  const cls = (/行く$/.test(word.word) || /いく$/.test(reading))
+    ? "iku"
+    : TE_RULE[reading.slice(-1)];
+  if (!cls) return null;
+  return { id: "godan.te." + cls, ...TE_RULE_LABEL[cls] };
+}
+
 const GROUPS = ["Plain", "Polite", "Connective", "Derived"];
 
 function seg(text, kana, key, extra) {
@@ -742,6 +773,7 @@ export {
   GODAN,
   MODS,
   stems,
+  teRule,
   stackInit,
   stackApply,
   trimSegs,
