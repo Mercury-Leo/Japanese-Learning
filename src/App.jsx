@@ -4,7 +4,7 @@ import { Plus, Trash2, X, Search, Volume2, Undo2, Download, Upload } from "lucid
 import { C, ROLE_COLOR, MINCHO, SANS, MONO } from "./theme.js";
 import { storage, KEY, SKEY, GKEY } from "./storage.js";
 import { SPEECH_OK, speak, useSpeechStatus, setAudioReporter } from "./speech.js";
-import { lookupWord, fetchExamples } from "./api.js";
+import { lookupWord, fetchExamples, warmDict } from "./api.js";
 import {
   romaji, toKana, settleKana, conjugate, detectType, TYPES, typeLabel, GROUPS, GODAN,
   MODS, stackInit, stackApply, columns, formText, formKana, answerMatches,
@@ -1589,7 +1589,7 @@ export default function App() {
           script={script}
           settings={settings}
           onOpen={(id) => { setSelId(id); setView("deck"); }}
-          onAdd={() => { setAdding(true); setView("deck"); }}
+          onAdd={() => { warmDict(); setAdding(true); setView("deck"); }}
           onDelete={removeWord}
         />
       )}
@@ -1613,7 +1613,7 @@ export default function App() {
               <input className="kd-in" style={{ paddingLeft: 27, fontSize: 13 }} placeholder="Search the deck" value={query}
                 onChange={(e) => { setQuery(e.target.value); setPendingDelete(null); }} />
             </div>
-            <button className="kd-btn" onClick={() => (adding ? closeAdd() : setAdding(true))} title="Add a word"
+            <button className="kd-btn" onClick={() => (adding ? closeAdd() : (warmDict(), setAdding(true)))} title="Add a word"
               style={{ background: adding ? C.ink : C.stem, color: C.panel, width: 38, display: "grid", placeItems: "center" }}>
               {adding ? <X size={15} /> : <Plus size={15} />}
             </button>
@@ -1998,6 +1998,15 @@ export default function App() {
                   ? speech.ja + " JA VOICE" + (speech.ja === 1 ? "" : "S")
                   : "NO JA VOICE (" + speech.voices + " OTHERS)"}
           </span>
+        </div>
+        {/* CC BY-SA makes this a licence condition, not a courtesy. */}
+        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "0 18px 13px", fontSize: 11, lineHeight: 1.6, color: C.muted }}>
+          Dictionary data from{" "}
+          <a href="https://www.edrdg.org/jmdict/j_jmdict.html" target="_blank" rel="noreferrer" style={{ color: C.aux }}>JMdict</a>
+          {" "}by the{" "}
+          <a href="https://www.edrdg.org/" target="_blank" rel="noreferrer" style={{ color: C.aux }}>Electronic Dictionary Research and Development Group</a>
+          , used under{" "}
+          <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noreferrer" style={{ color: C.aux }}>CC BY-SA 4.0</a>.
         </div>
       </footer>
     </div>

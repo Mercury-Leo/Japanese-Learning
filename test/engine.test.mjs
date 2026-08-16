@@ -9,7 +9,7 @@ import {
   SEED, TYPES,
 } from "../src/engine.js";
 import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope } from "../src/settings.js";
-import { tagsFromLookup, candidateWithTags } from "../src/api.js";
+import { tagsFromLookup, candidateWithTags, rankMatches } from "../src/api.js";
 
 let pass = 0, fail = 0;
 const eq = (got, want, label) => {
@@ -216,6 +216,54 @@ eq(candidateWithTags(badCand).word, "泳ぐ", "non-tag fields are preserved");
 eq(candidateWithTags({ ...badCand, jlpt: "N4" }).jlpt, "N4", "a valid jlpt still comes through");
 eq("trans" in candidateWithTags({ word: "泳ぐ", reading: "およぐ", type: "godan", trans: "garbage" }), false,
    "a raw internal `trans` key from a lookup is stripped too, not just `transitivity`");
+
+/* ---------------- offline dictionary ---------------- */
+group("offline dictionary");
+// [word, reading, meaning, type, trans] — the shape scripts/build-dict.mjs writes.
+const ROWS = [
+  ["行く", "いく", "to go", "godan", "intrans"],
+  ["生きる", "いきる", "to live", "ichidan", "intrans"],
+  ["医院", "いいん", "clinic; doctor's office", "noun", ""],
+  ["図書館", "としょかん", "library", "noun", ""],
+  ["静か", "しずか", "quiet; silent", "na-adj", ""],
+];
+const hits = (q) => rankMatches(ROWS, q).map((c) => c.word);
+
+eq(JSON.stringify(hits("行く")), JSON.stringify(["行く"]), "the written form matches");
+eq(JSON.stringify(hits("いく")), JSON.stringify(["行く"]), "the reading matches");
+eq(JSON.stringify(hits("iku")), JSON.stringify(["行く"]), "romaji matches through the kana IME");
+eq(JSON.stringify(hits("toshokan")), JSON.stringify(["図書館"]), "settleKana finalises a trailing n");
+// An exact reading must outrank a prefix, or いく surfaces 生きる ahead of 行く.
+eq(hits("いく")[0], "行く", "exact beats prefix");
+// English is the model's job — ordering gloss matches needs frequency data JMdict
+// simplified drops, and a "quiet" that omits 静か reads as broken.
+eq(hits("library").length, 0, "English falls through to the model, not a bad guess");
+eq(hits("い")[0], undefined, "a single kana is too short to prefix-match on");
+eq(hits("").length, 0, "an empty query matches nothing");
+eq(rankMatches(ROWS, "行く")[0].trans, "intrans", "transitivity survives the tag whitelist");
+eq("transitivity" in rankMatches(ROWS, "行く")[0], false, "the raw wire field never reaches the deck");
+eq(rankMatches(ROWS, "図書館")[0].common, true, "the common subset is flagged common");
+eq(rankMatches(ROWS, "いく").length <= 3, true, "at most three candidates");
+
+// The committed artifact, not just the ranking over it: a bad part-of-speech map
+// in build-dict.mjs would silently mistype every entry, and nothing else would notice.
+const dict = JSON.parse(readFileSync(new URL("../src/dict.json", import.meta.url), "utf8"));
+const find = (w) => dict.find((r) => r[0] === w);
+eq(dict.length > 20000, true, "the dictionary is the common subset, not a stub");
+eq(find("行く")[3], "godan", "行く is godan — the v5k-s irregularity detectType cannot see");
+eq(find("食べる")[3], "ichidan", "食べる is ichidan");
+eq(find("来る")[3], "kuru", "来る is kuru");
+eq(find("高い")[3], "i-adj", "高い is an い-adjective");
+eq(find("静か")[3], "na-adj", "静か is a な-adjective");
+eq(find("図書館")[3], "noun", "図書館 is a noun");
+// 帰る/変える is the pair the reading heuristic gets wrong; JMdict has it as data.
+eq(find("帰る")[3], "godan", "帰る is godan");
+eq(find("変える")[3], "ichidan", "変える is ichidan");
+// JMdict lists 勉強 as a noun tagged `vs`; build-dict emits the する form too.
+eq(find("勉強する")[3], "suru", "the する form is emitted for vs-tagged nouns");
+eq(find("勉強")[3], "noun", "and the bare noun is kept alongside it");
+eq(dict.every((r) => TYPES.some((t) => t.id === r[3])), true, "every entry carries a class the engine knows");
+eq(dict.every((r) => r[1] && !/[a-zA-Z]/.test(r[1])), true, "every reading is kana, never romaji");
 
 /* ---------------- meaning questions ---------------- */
 group("meaning questions");

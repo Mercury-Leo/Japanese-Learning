@@ -130,9 +130,10 @@ export default function SettingsView({ settings, onChange, wordCount, formCount 
               border: "1px solid " + C.rule, background: "transparent", color: C.ink, borderRadius: 2,
             }} />
           <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.6, marginTop: 8 }}>
-            Only needed for word lookup and example sentences. Stored on this device, not in
-            the deck you export. Anyone with this phone unlocked can read it back, so use a
-            key you can revoke.
+            Optional. Lookup uses the built-in JMdict dictionary and needs no key — a key only
+            adds example sentences, and lookup for words outside the common 26,000. Stored on
+            this device, not in the deck you export. Anyone with this phone unlocked can read it
+            back, so use a key you can revoke.
           </div>
         </div>
       </Section>

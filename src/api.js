@@ -1,4 +1,4 @@
-import { TYPES } from "./engine.js";
+import { TYPES, toKana, settleKana } from "./engine.js";
 
 /* In the Claude artifact these calls needed no credentials. Outside it they do.
    The key is entered in Settings and lives in this browser's localStorage, so it
@@ -74,7 +74,84 @@ export function candidateWithTags(c) {
   return { ...rest, ...tagsFromLookup({ jlpt, transitivity, common }) };
 }
 
+/* ---------- offline dictionary ---------- */
+/* JMdict, built into src/dict.json by scripts/build-dict.mjs. Loaded on the first
+   lookup rather than imported at the top: it is bigger than the rest of the app
+   put together, and a learner drilling forms may never open the add-word panel.
+   Vite emits it as its own fingerprinted chunk, so the service worker caches it
+   once and every later lookup is offline and free. */
+let dictP = null;
+const dict = () => (dictP ||= import("./dict.json").then((m) => m.default));
+
+/** Start the download when the learner opens the add-word panel rather than when
+ *  they hit Look up, so the fetch overlaps with them typing instead of stalling
+ *  behind it. Opening the panel is the intent signal — prefetching on load would
+ *  spend 600KB of somebody's mobile data on a feature they may never touch. */
+export const warmDict = () => { dict(); };
+
+const toCandidate = (r) => ({
+  word: r[0],
+  reading: r[1],
+  meaning: r[2],
+  type: r[3],
+  ...(r[4] ? { transitivity: r[4] === "trans" ? "transitive" : "intransitive" } : {}),
+  common: true,
+});
+
+/** Japanese in, candidates out: the written form, then the reading, then a prefix.
+ *  Romaji folds in by running the query through the same kana IME the quiz uses,
+ *  so `iku`, `いく` and `行く` all land on 行く.
+ *
+ *  English in is deliberately not handled here. Matching a gloss is easy; ordering
+ *  the matches is not — "quiet" hits 静か, 安静, 穏やか and a dozen others, and
+ *  picking the one a learner means needs frequency data that JMdict's nf/news
+ *  priority codes carry and the simplified JSON drops. A list that answers "quiet"
+ *  without 静か in it looks broken, so English falls through to the model below,
+ *  which is good at exactly that fuzziness.
+ *
+ *  Takes rows rather than reading the dictionary itself so the ranking is
+ *  reachable from the test suite without loading 26k entries. */
+const conjugable = (r) => (r[3] === "noun" ? 0 : 1);
+
+export function rankMatches(rows, query) {
+  const q = query.trim();
+  if (!q) return [];
+  /* settleKana finalises a trailing bare n — without it `toshokan` converts to
+     としょかn and matches nothing. Spaces go first so `benkyou suru` reaches
+     べんきょうする. */
+  const kana = settleKana(toKana(q.toLowerCase().replace(/\s+/g, "")));
+  /* One character prefix-matches half the dictionary. */
+  const wantPrefix = q.length >= 2 || kana.length >= 2;
+
+  const tiers = [[], [], []];
+  for (const r of rows) {
+    if (r[0] === q || r[0] === kana) tiers[0].push(r);
+    else if (r[1] === q || r[1] === kana) tiers[1].push(r);
+    else if (wantPrefix && (r[0].startsWith(q) || (kana.length >= 2 && r[1].startsWith(kana)))) tiers[2].push(r);
+  }
+  /* Sort inside each tier, never across, so an exact reading always outranks a
+     prefix. Within a tier the dictionary's own order is meaningless — 幾 precedes
+     行く for いく purely by entry id — and this is a conjugation drill, so the word
+     you can take apart wins.
+     ponytail: one tie-breaker, not a frequency ranker. The picker shows three
+     candidates with class and gloss, so being in the three is what matters. If the
+     order ever needs to be right, parse the full JMdict XML for nf01–nf48. */
+  return tiers
+    .flatMap((t) => t.sort((a, b) => conjugable(b) - conjugable(a)))
+    .slice(0, 3)
+    .map((r) => candidateWithTags(toCandidate(r)));
+}
+
+const lookupLocal = async (query) => rankMatches(await dict(), query);
+
+/** The dictionary first — it is offline, exact, and needs no key. The model only
+ *  sees what the common subset does not carry, and only when a key exists; with no
+ *  key an unknown word falls through to the add-word form, which is where it would
+ *  have ended up anyway. */
 export async function lookupWord(query) {
+  const local = await lookupLocal(query);
+  if (local.length) return local;
+  if (!getKey()) return [];
   const parsed = await ask(LOOKUP_PROMPT + query);
   return (parsed.candidates || [])
     .filter((c) => c && c.word && c.reading && TYPES.some((t) => t.id === c.type))
