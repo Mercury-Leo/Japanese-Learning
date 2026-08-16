@@ -1,6 +1,7 @@
 import { C, MONO } from "./theme.js";
 import { TYPES, MODS, GROUPS, typeLabel } from "./engine.js";
 import { allForms, PRESETS, applyPreset, JLPT } from "./settings.js";
+import { getKey, setKey } from "./api.js";
 
 const micro = { fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: C.muted };
 
@@ -114,6 +115,26 @@ export default function SettingsView({ settings, onChange, wordCount, formCount 
           <Chip key={k} accent={C.extra} on={settings.show[k]}
             onClick={() => set({ show: { ...settings.show, [k]: !settings.show[k] } })}>{label}</Chip>
         ))}
+      </Section>
+
+      {/* Deliberately not part of `settings`: that object is what Export JSON writes out,
+          and a key does not belong in a file you hand to someone else. It stays in this
+          browser's localStorage only, so each device is entered once. */}
+      <Section label="API key">
+        <div style={{ width: "100%" }}>
+          <input type="password" defaultValue={getKey()} onChange={(e) => setKey(e.target.value)}
+            autoComplete="off" spellCheck={false} aria-label="Anthropic API key"
+            placeholder="sk-ant-..."
+            style={{
+              width: "100%", maxWidth: 420, padding: "8px 10px", fontFamily: MONO, fontSize: 12,
+              border: "1px solid " + C.rule, background: "transparent", color: C.ink, borderRadius: 2,
+            }} />
+          <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.6, marginTop: 8 }}>
+            Only needed for word lookup and example sentences. Stored on this device, not in
+            the deck you export. Anyone with this phone unlocked can read it back, so use a
+            key you can revoke.
+          </div>
+        </div>
       </Section>
 
       <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.6, borderTop: "1px solid " + C.ruleSoft, paddingTop: 12 }}>

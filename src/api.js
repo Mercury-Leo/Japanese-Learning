@@ -1,15 +1,26 @@
 import { TYPES } from "./engine.js";
 
 /* In the Claude artifact these calls needed no credentials. Outside it they do.
-   NOTE: a key in a browser bundle is visible to anyone who opens devtools. Fine
-   for a local tool on your own machine; put a tiny server proxy in front of it
-   before this goes anywhere else. */
-const API_KEY = import.meta.env?.VITE_ANTHROPIC_API_KEY;
+   The key is entered in Settings and lives in this browser's localStorage, so it
+   is never in the bundle and never leaves the device except in the API call
+   itself. VITE_ANTHROPIC_API_KEY still works as a build-time fallback for desktop
+   dev. Anyone holding the phone (or its devtools) can still read it — the only
+   way to truly hide it is a server proxy that keeps the key server-side. */
+const AKEY = "kotoba-api-key-v1";
 const MODEL = "claude-sonnet-4-6";
 
+export const getKey = () => localStorage.getItem(AKEY) || import.meta.env?.VITE_ANTHROPIC_API_KEY || "";
+
+export function setKey(v) {
+  const k = (v || "").trim();
+  if (k) localStorage.setItem(AKEY, k);
+  else localStorage.removeItem(AKEY);
+}
+
 async function ask(prompt) {
+  const API_KEY = getKey();
   if (!API_KEY) {
-    throw new Error("No API key. Copy .env.example to .env, add VITE_ANTHROPIC_API_KEY, and restart the dev server.");
+    throw new Error("No API key. Add one under Settings → API key.");
   }
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",

@@ -5,7 +5,7 @@
 import { readFileSync } from "node:fs";
 import {
   romaji, toKana, settleKana, conjugate, detectType,
-  stackInit, stackApply, answerMatches, columns, formText,
+  stackInit, stackApply, answerMatches, columns, formText, meaningItems,
   SEED, TYPES,
 } from "../src/engine.js";
 import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope } from "../src/settings.js";
@@ -217,6 +217,28 @@ eq(candidateWithTags({ ...badCand, jlpt: "N4" }).jlpt, "N4", "a valid jlpt still
 eq("trans" in candidateWithTags({ word: "泳ぐ", reading: "およぐ", type: "godan", trans: "garbage" }), false,
    "a raw internal `trans` key from a lookup is stripped too, not just `transitivity`");
 
+/* ---------------- meaning questions ---------------- */
+group("meaning questions");
+const V = (id, meaning) => ({ id, word: id, reading: id, meaning, type: "noun" });
+const deck = [V("a", "library"), V("b", "station"), V("c", "school"), V("d", "")];
+
+const mi = meaningItems(deck, deck);
+eq(mi.length, 6, "a gloss pair per glossed word, and none for the ungloss'd one");
+eq(mi.filter((i) => i.kind === "mean-en").length, 3, "half ask word → gloss");
+eq(mi.filter((i) => i.kind === "mean-ja").length, 3, "half ask gloss → word");
+eq(mi.every((i) => !i.opts.includes(i.wordId)), true, "a word is never its own distractor");
+eq(mi.every((i) => !i.opts.includes("d")), true, "an ungloss'd word cannot be a distractor either");
+
+// Drilling one word still needs distractors, so they come from the whole deck.
+eq(meaningItems([deck[0]], deck).length, 2, "a one-word selection still gets its pair");
+const pair = deck.slice(0, 2);
+eq(meaningItems(pair, pair).length, 0, "a two-word deck cannot fill a choice, so it asks nothing");
+
+// Two words that mean the same thing would make a question with two right answers.
+const dup = [V("a", "library"), V("b", "library"), V("c", "school"), V("d", "station")];
+eq(meaningItems([dup[0]], dup).every((i) => !i.opts.includes("b")), true,
+   "a same-gloss word is never offered as a wrong answer");
+
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so
 // tapping a godan stem unmounted the whole tree. Nothing that only calls the
@@ -238,7 +260,9 @@ for (const [file, importRe] of modules) {
   const imported = names(appSrc, importRe);
   eq(exported.length > 0, true, `found the export list of ${file}`);
   for (const name of exported)
-    if (new RegExp(`\\b${name}\\b`).test(appCode))
+    // \b treats "-" as a boundary, so a CSS class like .kd-seg reads as a
+    // reference to the export `seg`. Exclude hyphens on both sides.
+    if (new RegExp(`(?<![\\w-])${name}(?![\\w-])`).test(appCode))
       eq(imported.includes(name), true, `App.jsx references ${name} but does not import it from ${file}`);
 }
 

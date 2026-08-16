@@ -1,0 +1,15 @@
+{
+  "name": "言葉帳 · Kotoba-chō",
+  "short_name": "言葉帳",
+  "description": "Japanese vocabulary deck with a compositional conjugation engine",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#e6e9e3",
+  "theme_color": "#e6e9e3",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

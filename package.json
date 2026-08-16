@@ -8,6 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "serve": "vite build && vite preview --host",
+    "icons": "node scripts/make-icons.mjs",
     "test": "node test/engine.test.mjs"
   },
   "dependencies": {

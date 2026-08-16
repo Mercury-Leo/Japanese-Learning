@@ -709,6 +709,26 @@ function shuffle(a) {
 /* Forms usable as the *prompt* when the dictionary form is the answer. */
 const REVERSE_SOURCES = ["masu", "te", "ta", "nai", "mashita", "teiru", "pot", "nakatta", "ba"];
 
+/* Meaning questions — a pair per word, word→gloss and gloss→word. This is the
+   only drill a noun has, so without it half a vocabulary deck is unquizzable.
+   Distractors come from `all` rather than `pool`: drilling a single word should
+   not leave it with nothing to be confused with. A word with no gloss, or with
+   fewer than two differently-glossed neighbours, produces nothing — a question
+   whose wrong answers are also right teaches the wrong thing. */
+function meaningItems(pool, all) {
+  const gloss = (w) => (w.meaning || "").trim();
+  const glossed = all.filter(gloss);
+  const out = [];
+  for (const w of pool) {
+    if (!gloss(w)) continue;
+    const others = glossed.filter((x) => x.id !== w.id && gloss(x) !== gloss(w));
+    if (others.length < 2) continue;
+    for (const kind of ["mean-en", "mean-ja"])
+      out.push({ wordId: w.id, formId: null, fromId: null, kind, opts: shuffle([...others]).slice(0, 3).map((x) => x.id) });
+  }
+  return out;
+}
+
 
 export {
   romaji,
@@ -733,6 +753,7 @@ export {
   answerMatches,
   shuffle,
   shuffleStable,
+  meaningItems,
   REVERSE_SOURCES,
   SEED,
   seg,

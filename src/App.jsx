@@ -8,7 +8,7 @@ import { lookupWord, fetchExamples } from "./api.js";
 import {
   romaji, toKana, settleKana, conjugate, detectType, TYPES, typeLabel, GROUPS, GODAN,
   MODS, stackInit, stackApply, columns, formText, formKana, answerMatches,
-  shuffle, shuffleStable, REVERSE_SOURCES, SEED,
+  shuffle, shuffleStable, meaningItems, REVERSE_SOURCES, SEED,
 } from "./engine.js";
 import { DEFAULTS, mergeSettings, visibleForms, visibleMods, wordInScope, JLPT } from "./settings.js";
 import SettingsView from "./SettingsView.jsx";
@@ -460,6 +460,137 @@ function ConfirmModal({ eyebrow, stat, statLabel, body, confirmLabel, cancelLabe
 }
 
 /* ============================================================
+   VOCABULARY
+   The deck sidebar is a picker — narrow, truncated, one word at a time.
+   This is the ledger: everything tracked, full width, meaning-forward,
+   verbs and plain words in the same list. Rows open in the deck, so the
+   two views are one deck seen from two distances.
+   ============================================================ */
+const VOCAB_GROUPS = [
+  { id: "all", label: "All", jp: "全部", types: null },
+  { id: "verb", label: "Verbs", jp: "動詞", types: ["godan", "ichidan", "suru", "kuru"] },
+  { id: "adj", label: "Adjectives", jp: "形容詞", types: ["i-adj", "na-adj"] },
+  { id: "other", label: "Nouns & rest", jp: "名詞", types: ["noun"] },
+];
+
+function VocabView({ words, scopedCount, script, settings, onOpen, onAdd, onDelete }) {
+  const [grp, setGrp] = useState("all");
+  const [q, setQ] = useState("");
+  const [confirm, setConfirm] = useState(null);
+
+  const micro = { fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: C.muted };
+  const need = q.trim().toLowerCase();
+  const inGroup = (w, g) => !g.types || g.types.includes(w.type);
+  const group = VOCAB_GROUPS.find((x) => x.id === grp) || VOCAB_GROUPS[0];
+  const list = words.filter((w) =>
+    inGroup(w, group) &&
+    (!need || (w.word + w.reading + w.meaning + romaji(w.reading)).toLowerCase().includes(need)));
+  const doomed = confirm ? words.find((w) => w.id === confirm) : null;
+
+  const tag = { fontFamily: MONO, fontSize: 8.5, letterSpacing: ".12em", padding: "1px 5px", border: "1px solid " + C.ruleSoft, color: C.muted };
+
+  return (
+    <div style={{ maxWidth: 1120, margin: "0 auto", padding: 18 }}>
+      {doomed && (
+        <ConfirmModal
+          eyebrow="Remove from vocabulary"
+          stat={doomed.word}
+          statLabel={doomed.meaning || typeLabel(doomed.type)}
+          body="This drops the word from the deck entirely — its examples and tags go with it."
+          confirmLabel="Delete"
+          cancelLabel="Keep"
+          onConfirm={() => { onDelete(doomed.id); setConfirm(null); }}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+        <div style={{ position: "relative", flex: "1 1 200px", minWidth: 170 }}>
+          <Search size={13} style={{ position: "absolute", left: 9, top: 11, color: C.muted }} />
+          <input className="kd-in" style={{ paddingLeft: 27, fontSize: 13 }} placeholder="Search everything you track"
+            value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+          {VOCAB_GROUPS.map((g) => {
+            const on = g.id === grp;
+            const n = words.filter((w) => inGroup(w, g)).length;
+            return (
+              <button key={g.id} className="kd-btn kd-form-chip" onClick={() => setGrp(g.id)}
+                style={{
+                  border: "1px solid " + (on ? C.ink : C.rule), background: on ? C.ink : C.panel,
+                  color: on ? C.panel : C.ink, padding: "6px 10px", fontSize: 11.5,
+                }}>
+                {g.label}
+                <span style={{ fontFamily: MINCHO, fontSize: 10, marginLeft: 5, opacity: .7 }}>{g.jp}</span>
+                <span style={{ fontFamily: MONO, fontSize: 8.5, marginLeft: 5, opacity: .7 }}>{n}</span>
+              </button>
+            );
+          })}
+        </div>
+        <button className="kd-btn" onClick={onAdd}
+          style={{ background: C.stem, color: C.panel, padding: "8px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
+          <Plus size={13} /> Add a word
+        </button>
+      </div>
+
+      <div style={{ border: "1px solid " + C.rule, background: C.panel }}>
+        {list.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center" }}>
+            <div style={{ fontFamily: MINCHO, fontSize: 34, color: C.rule }}>空</div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 8, lineHeight: 1.6 }}>
+              {words.length === 0
+                ? "Nothing tracked yet. Add a word — verb, adjective or plain noun, they all live here."
+                : need
+                  ? "Nothing matches that search."
+                  : "No " + group.label.toLowerCase() + " tracked yet."}
+            </div>
+          </div>
+        ) : list.map((w) => (
+          <div key={w.id} className="kd-row" onClick={() => onOpen(w.id)}
+            style={{
+              display: "flex", alignItems: "center", gap: 14, padding: "10px 13px", cursor: "pointer",
+              borderBottom: "1px solid " + C.ruleSoft, flexWrap: "wrap",
+            }}>
+            <div style={{ flex: "0 1 200px", minWidth: 130 }}>
+              <div style={{ fontFamily: MINCHO, fontSize: 21 }}>
+                <Word text={w.word} kana={w.reading} mode={script} ruby={9} />
+              </div>
+              {settings.show.romaji && (
+                <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.muted, letterSpacing: ".05em", marginTop: 1 }}>{romaji(w.reading)}</div>
+              )}
+            </div>
+            <div style={{ flex: "3 1 220px", minWidth: 150, fontSize: 13, lineHeight: 1.5 }}>
+              {w.meaning || <span style={{ color: C.muted }}>no gloss — open it to add one</span>}
+            </div>
+            <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", marginLeft: "auto" }}>
+              <span style={{ ...tag, fontFamily: MINCHO, fontSize: 11, letterSpacing: 0, color: C.aux, borderColor: C.aux }}>{typeLabel(w.type)}</span>
+              {w.jlpt && <span style={tag}>{w.jlpt}</span>}
+              {(w.trans === "trans" || w.trans === "intrans") && <span style={tag}>{w.trans === "trans" ? "他" : "自"}</span>}
+              {w.common === true && <span style={tag}>COMMON</span>}
+              <Say text={w.reading} label={"Play " + w.word} enabled={settings.show.audio} />
+              <button className="kd-btn" title={"Delete " + w.word}
+                onClick={(e) => { e.stopPropagation(); setConfirm(w.id); }}
+                style={{ color: C.rule, padding: 8, margin: -2 }}>
+                <Trash2 size={13} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ ...micro, fontSize: 9, marginTop: 10, lineHeight: 1.7 }}>
+        {list.length} shown · {words.length} tracked
+        {scopedCount < words.length && (
+          <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: SANS, fontSize: 11.5, marginLeft: 8 }}>
+            The deck and quiz currently see {scopedCount} of them — the rest fall outside your scope in Settings.
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
    ANSWER MATCHING
    The point of the drill is morphology, not romanisation, so input is
    accepted as kanji, kana, or loose romaji. Both sides go through the
@@ -475,6 +606,7 @@ function Quiz({ words, script, onProgress, settings }) {
 
   const [picked, setPicked] = useState(() => new Set(words.map((w) => w.id)));
   const [formIds, setFormIds] = useState(["masu", "te", "ta", "nai"]);
+  const [meaningOn, setMeaningOn] = useState(true);
   const [len, setLen] = useState(20);
   const [dir, setDir] = useState("mixed");
   const [ime, setIme] = useState(true);
@@ -534,10 +666,12 @@ function Quiz({ words, script, onProgress, settings }) {
         taken.add(answer);
       }
     }
+    if (meaningOn) out.push(...meaningItems(pool, words));
     return out;
-  }, [poolKey, formIds.join(","), dir]); // eslint-disable-line
+  }, [poolKey, formIds.join(","), dir, meaningOn, words]); // eslint-disable-line
 
   const total = items.length;
+  const meaningCount = items.filter((i) => i.kind.startsWith("mean")).length;
 
   function start(list, cap) {
     const c = cap === undefined ? len : cap;
@@ -560,8 +694,9 @@ function Quiz({ words, script, onProgress, settings }) {
 
   const current = queue[idx] || null;
   const cWord = current ? words.find((w) => w.id === current.wordId) : null;
+  const isMean = !!current && current.kind.startsWith("mean");
   const cForms = useMemo(() => (cWord ? conjugate(cWord) : []), [cWord]);
-  const target = current ? cForms.find((f) => f.id === current.formId) : null;
+  const target = current && !isMean ? cForms.find((f) => f.id === current.formId) : null;
   const source = current && current.fromId ? cForms.find((f) => f.id === current.fromId) : null;
 
   function submit() {
@@ -578,7 +713,9 @@ function Quiz({ words, script, onProgress, settings }) {
 
   function choose(id) {
     if (judged || !current) return;
-    const ok = id === current.formId;
+    /* Form questions are answered with a form id, meaning questions with a
+       word id — same picker, two different keys. */
+    const ok = id === (current.kind === "recognise" ? current.formId : current.wordId);
     setJudged({ ok, chose: id });
     if (ok) setRight((r) => r + 1);
     else setMisses((m) => [...m, current]);
@@ -689,6 +826,23 @@ function Quiz({ words, script, onProgress, settings }) {
           )}
 
           <div style={{ borderTop: "1px solid " + C.ruleSoft, paddingTop: 12, marginTop: 4 }}>
+            <div style={{ ...micro, fontSize: 8.5, marginBottom: 6 }}>Vocabulary</div>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+              <button className="kd-btn kd-form-chip" onClick={() => setMeaningOn(!meaningOn)}
+                style={{
+                  border: "1px solid " + (meaningOn ? C.aux : C.rule),
+                  background: meaningOn ? C.aux : "transparent",
+                  color: meaningOn ? C.panel : C.ink, padding: "6px 9px", fontSize: 11.5,
+                }}>
+                Meaning
+                <span style={{ fontFamily: MINCHO, fontSize: 10, marginLeft: 5, opacity: .8 }}>意味</span>
+                <span style={{ fontFamily: MONO, fontSize: 8.5, marginLeft: 5, opacity: .7 }}>{meaningCount}</span>
+              </button>
+              <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.5, flex: "1 1 140px" }}>
+                Both ways — word to gloss and gloss to word. The only drill a noun has.
+              </span>
+            </div>
+
             <div style={{ ...micro, fontSize: 8.5, marginBottom: 6 }}>Direction</div>
             <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 12 }}>
               {[["produce", "Produce the form"], ["recognise", "Name the form"], ["mixed", "Mixed"]].map(([id, label]) => (
@@ -719,9 +873,9 @@ function Quiz({ words, script, onProgress, settings }) {
               }}>
               {total === 0 ? "Pick words and forms to begin" : "Start · " + (len === 0 || len > total ? total : len) + " question" + ((len === 0 || len > total ? total : len) === 1 ? "" : "s")}
             </button>
-            {available.length === 0 && (
+            {available.length === 0 && meaningCount === 0 && (
               <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>
-                No forms available. Enable some in Settings, or pick more words.
+                No forms available. Enable some in Settings, or turn Meaning on above.
               </div>
             )}
             {total > 0 && (
@@ -784,7 +938,19 @@ function Quiz({ words, script, onProgress, settings }) {
             <div style={{ display: "grid", gap: 10 }}>
               {misses.map((m, i) => {
                 const w = words.find((x) => x.id === m.wordId);
-                const f = w ? conjugate(w).find((x) => x.id === m.formId) : null;
+                if (!w) return null;
+                if (m.kind.startsWith("mean")) {
+                  return (
+                    <div key={i} style={{ borderLeft: "3px solid " + C.stem, paddingLeft: 9 }}>
+                      <div style={{ ...micro, fontSize: 8.5, marginBottom: 2 }}>{w.word} · Meaning</div>
+                      <div style={{ fontFamily: MINCHO, fontSize: 20 }}>
+                        <Word text={w.word} kana={w.reading} mode={qMode} ruby={9} />
+                      </div>
+                      <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3 }}>{w.meaning}</div>
+                    </div>
+                  );
+                }
+                const f = conjugate(w).find((x) => x.id === m.formId);
                 if (!f) return null;
                 return (
                   <div key={i} style={{ borderLeft: "3px solid " + C.stem, paddingLeft: 9 }}>
@@ -804,7 +970,7 @@ function Quiz({ words, script, onProgress, settings }) {
   }
 
   /* ---------------- question ---------------- */
-  if (!current || !target) {
+  if (!current || !cWord || (!isMean && !target)) {
     return (
       <div style={box}>
         <div style={{ fontSize: 13, color: C.muted }}>That question no longer resolves — the word may have been deleted.</div>
@@ -813,9 +979,12 @@ function Quiz({ words, script, onProgress, settings }) {
     );
   }
   const isRecog = current.kind === "recognise";
+  const toEn = current.kind === "mean-en";
   const options = isRecog
     ? shuffleStable([target, ...(current.opts || []).map((id) => cForms.find((f) => f.id === id)).filter(Boolean)], current.wordId + current.formId)
-    : [];
+    : isMean
+      ? shuffleStable([cWord, ...(current.opts || []).map((id) => words.find((w) => w.id === id)).filter(Boolean)], current.wordId + current.kind)
+      : [];
   const wrongSoFar = idx + (judged ? 1 : 0) - right;
   const pctDone = Math.round((idx / queue.length) * 100);
 
@@ -834,32 +1003,76 @@ function Quiz({ words, script, onProgress, settings }) {
       <div style={{ ...box, borderTop: "3px solid " + C.ink, padding: "20px 16px" }}>
         {/* the ask */}
         <div style={{ ...micro, marginBottom: 12 }}>
-          {isRecog
-            ? "Which form is this?"
-            : source
-              ? "From this form, write the dictionary form"
-              : "Write the " + target.label.toLowerCase()}
-          {!isRecog && <span style={{ fontFamily: MINCHO, letterSpacing: 0, textTransform: "none", marginLeft: 6 }}>{target.jp}</span>}
+          {isMean
+            ? (toEn ? "What does this mean?" : "Which word means this?")
+            : isRecog
+              ? "Which form is this?"
+              : source
+                ? "From this form, write the dictionary form"
+                : "Write the " + target.label.toLowerCase()}
+          {!isRecog && !isMean && <span style={{ fontFamily: MINCHO, letterSpacing: 0, textTransform: "none", marginLeft: 6 }}>{target.jp}</span>}
+          {isMean && <span style={{ fontFamily: MINCHO, letterSpacing: 0, textTransform: "none", marginLeft: 6 }}>意味</span>}
         </div>
 
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 4, marginBottom: 4 }}>
-          <div style={{ fontFamily: MINCHO, fontSize: "clamp(28px, 9vw, 44px)" }}>
-            {isRecog
-              ? <Word text={formText(target)} kana={formKana(target)} mode={qMode} ruby="clamp(10px, 3vw, 15px)" />
-              : source
-                ? <Word text={formText(source)} kana={formKana(source)} mode={qMode} ruby="clamp(10px, 3vw, 15px)" />
-                : <Word text={cWord.word} kana={cWord.reading} mode={qMode} ruby="clamp(10px, 3vw, 15px)" />}
-          </div>
-          {(isRecog || judged) && <Say text={formKana(target)} size={15} enabled={settings.show.audio} />}
-        </div>
-        <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16 }}>
-          {cWord.meaning}
-          <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".1em", marginLeft: 8 }}>{typeLabel(cWord.type)}</span>
-          {source && <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".1em", marginLeft: 8 }}>{source.label.toUpperCase()}</span>}
-        </div>
+        {isMean && !toEn ? (
+          /* The gloss is the prompt — English, so it stays in the sans face. */
+          <div style={{ fontSize: "clamp(19px, 5.4vw, 26px)", lineHeight: 1.35, marginBottom: 16 }}>{cWord.meaning}</div>
+        ) : (
+          <>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 4, marginBottom: 4 }}>
+              <div style={{ fontFamily: MINCHO, fontSize: "clamp(28px, 9vw, 44px)" }}>
+                {isMean || (!isRecog && !source)
+                  ? <Word text={cWord.word} kana={cWord.reading} mode={qMode} ruby="clamp(10px, 3vw, 15px)" />
+                  : isRecog
+                    ? <Word text={formText(target)} kana={formKana(target)} mode={qMode} ruby="clamp(10px, 3vw, 15px)" />
+                    : <Word text={formText(source)} kana={formKana(source)} mode={qMode} ruby="clamp(10px, 3vw, 15px)" />}
+              </div>
+              {(isRecog || isMean || judged) && (
+                <Say text={isMean ? cWord.reading : formKana(target)} size={15} enabled={settings.show.audio} />
+              )}
+            </div>
+            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16 }}>
+              {/* Never leak the answer: a meaning question must not print the gloss. */}
+              {!isMean && cWord.meaning}
+              <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".1em", marginLeft: isMean ? 0 : 8 }}>{typeLabel(cWord.type)}</span>
+              {source && <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".1em", marginLeft: 8 }}>{source.label.toUpperCase()}</span>}
+            </div>
+          </>
+        )}
 
         {/* answer */}
-        {isRecog ? (
+        {isMean ? (
+          <div style={{ display: "grid", gap: 5 }}>
+            {options.map((w) => {
+              const chosen = judged && judged.chose === w.id;
+              const isRight = judged && w.id === cWord.id;
+              return (
+                <button key={w.id} className="kd-btn kd-form-chip" onClick={() => choose(w.id)}
+                  disabled={!!judged}
+                  style={{
+                    textAlign: "left", padding: "10px 12px", fontSize: 13,
+                    border: "1px solid " + (isRight ? C.aux : chosen ? C.stem : C.rule),
+                    background: isRight ? C.aux : chosen ? C.stem : C.panel,
+                    color: isRight || chosen ? C.panel : C.ink,
+                    cursor: judged ? "default" : "pointer",
+                  }}>
+                  {toEn ? w.meaning : (
+                    <span style={{ fontFamily: MINCHO, fontSize: 19 }}>
+                      <Word text={w.word} kana={w.reading} mode={qMode} ruby={9}
+                        rubyColor={isRight || chosen ? "#c9cfd6" : C.muted} />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {judged && (
+              <button className="kd-btn" onClick={advance}
+                style={{ background: C.ink, color: C.panel, padding: "10px 0", fontSize: 13, marginTop: 3 }}>
+                {idx + 1 >= queue.length ? "See result" : "Next"}
+              </button>
+            )}
+          </div>
+        ) : isRecog ? (
           <div style={{ display: "grid", gap: 5 }}>
             {options.map((f) => {
               const chosen = judged && judged.chose === f.id;
@@ -921,10 +1134,26 @@ function Quiz({ words, script, onProgress, settings }) {
                 fontFamily: MONO, fontSize: 9, letterSpacing: ".18em", padding: "3px 7px",
                 background: judged.ok ? C.aux : C.stem, color: C.panel,
               }}>{judged.ok ? "CORRECT" : "NOT QUITE"}</span>
-              {!judged.ok && input.trim() && (
+              {!isMean && !judged.ok && input.trim() && (
                 <span style={{ fontSize: 12, color: C.muted }}>you wrote <span style={{ fontFamily: MINCHO, fontSize: 15, color: C.ink }}>{input.trim()}</span></span>
               )}
             </div>
+            {isMean ? (
+              /* Both halves of the pair, whichever half was the prompt — the point
+                 is that the two are now attached to each other. */
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontFamily: MINCHO, fontSize: "clamp(24px, 7vw, 34px)" }}>
+                  <Word text={cWord.word} kana={cWord.reading} mode={qMode} ruby="clamp(9px, 2.6vw, 13px)" />
+                </span>
+                <span style={{ fontSize: 14, paddingBottom: 4 }}>{cWord.meaning}</span>
+                <span style={{ paddingBottom: 2 }}>
+                  <Say text={cWord.reading} label="Play the word" enabled={settings.show.audio} />
+                </span>
+                {settings.show.romaji && (
+                  <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted, paddingBottom: 5 }}>{romaji(cWord.reading)}</span>
+                )}
+              </div>
+            ) : (
             <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "flex-end" }}>
               {target.segs.map((s, i) => (
                 <div key={i} style={{ textAlign: "center" }}>
@@ -940,13 +1169,16 @@ function Quiz({ words, script, onProgress, settings }) {
                 </div>
               ))}
             </div>
+            )}
+            {!isMean && (
             <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 8 }}>
               {settings.show.romaji && (
                 <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted }}>{romaji(formKana(target))}</span>
               )}
               <Say text={formKana(target)} label="Play the answer" enabled={settings.show.audio} />
             </div>
-            {target.note && (
+            )}
+            {!isMean && target.note && (
               <div style={{ marginTop: 11, borderLeft: "3px solid " + C.extra, background: C.panelAlt, padding: "8px 10px", fontSize: 12, lineHeight: 1.6 }}>
                 {target.note}
               </div>
@@ -1081,12 +1313,12 @@ export default function App() {
     });
   }
 
-  /** On a narrow screen the deck sits below the stage, so selecting a word has
-   *  to bring the breakdown back into view or the tap looks like it did nothing. */
+  /** On a narrow screen the deck sits above the stage, so selecting a word has
+   *  to bring the breakdown into view or the tap looks like it did nothing. */
   function revealStage() {
     if (!window.matchMedia || !window.matchMedia("(max-width: 820px)").matches) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    document.querySelector(".kd-stage")?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
   }
 
   async function runLookup() {
@@ -1243,6 +1475,12 @@ export default function App() {
         }
         @keyframes kd-rise { from { opacity: 0; transform: translate(-50%, 10px) } to { opacity: 1; transform: translate(-50%, 0) } }
 
+        /* One height for every segmented toggle in the masthead, so the nav and
+           the script group line up instead of each sizing to its own font. */
+        .kd-seg { display: flex; border: 1px solid ${C.rule}; }
+        .kd-seg > button { height: 28px; padding: 0 11px; display: flex; align-items: center; }
+        .kd-seg > button + button { border-left: 1px solid ${C.rule}; }
+
         .kd-deck { flex: 1 1 260px; min-width: 250px; max-width: 320px; }
         .kd-stage { flex: 3 1 460px; min-width: 300px; }
         .kd-list { max-height: 68vh; overflow-y: auto; }
@@ -1250,12 +1488,23 @@ export default function App() {
         /* The tagline is decoration; it is the first thing to go on a phone. */
         @media (max-width: 640px) { .kd-tagline { display: none; } }
 
-        /* Narrow screens: the breakdown is the point, so it goes first and the
-           deck becomes a normal page-scrolling list underneath it. */
+        /* Narrow screens: the deck goes on top as a horizontal shelf — one
+           thumb-row of cards instead of a screen-tall list — and the breakdown
+           gets the rest of the page underneath it. */
         @media (max-width: 820px) {
-          .kd-deck { order: 2; max-width: none; min-width: 0; width: 100%; }
-          .kd-stage { order: 1; min-width: 0; width: 100%; }
-          .kd-list { max-height: none; overflow-y: visible; }
+          .kd-deck { order: 1; max-width: none; min-width: 0; width: 100%; }
+          .kd-stage { order: 2; min-width: 0; width: 100%; }
+          .kd-list {
+            display: flex; max-height: none;
+            overflow-x: auto; overflow-y: hidden;
+            scroll-snap-type: x proximity; overscroll-behavior-x: contain;
+          }
+          .kd-list > * {
+            flex: 0 0 min(62vw, 230px); scroll-snap-align: start;
+            border-bottom: none !important; border-right: 1px solid ${C.ruleSoft};
+          }
+          .kd-list > *:last-child { border-right: none; }
+          .kd-list > .kd-empty { flex: 1 0 100%; border-right: none; }
         }
 
         @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
@@ -1263,38 +1512,43 @@ export default function App() {
 
       {/* masthead */}
       <header style={{ borderBottom: "1px solid " + C.rule, background: C.panel }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "14px 18px", display: "flex", alignItems: "baseline", gap: 14, flexWrap: "wrap" }}>
-          <div style={{ fontFamily: MINCHO, fontSize: 26, letterSpacing: ".08em" }}>言葉帳</div>
-          <div className="kd-tagline" style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".22em", textTransform: "uppercase", color: C.muted }}>
-            Kotoba-chō · word deck &amp; morphology
+        {/* justify-content plus one auto margin on the title packs every control
+            against the right edge: one line on a desktop, and on a phone the nav
+            stays flush right beside the title with the script row flush right
+            under it — no third row, nothing left hanging mid-width. */}
+        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "12px 18px", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 14, flexWrap: "wrap" }}>
+          {/* Title and tagline share a baseline; everything else centres on the row. */}
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, minWidth: 0, marginRight: "auto" }}>
+            <div style={{ fontFamily: MINCHO, fontSize: 26, letterSpacing: ".08em", lineHeight: 1 }}>言葉帳</div>
+            <div className="kd-tagline" style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".22em", textTransform: "uppercase", color: C.muted }}>
+              Kotoba-chō · word deck &amp; morphology
+            </div>
           </div>
-          <div style={{ display: "flex", border: "1px solid " + C.rule }}>
-            {[["deck", "Deck"], ["quiz", "Quiz"], ["settings", "Settings"]].map(([id, label]) => {
+          <div className="kd-seg">
+            {[["deck", "Deck"], ["vocab", "Vocab"], ["quiz", "Quiz"], ["settings", "Settings"]].map(([id, label]) => {
               const on = view === id;
               return (
                 <button key={id} className="kd-btn kd-form-chip" onClick={() => goto(id)}
                   style={{
-                    fontFamily: MONO, fontSize: 10, letterSpacing: ".16em", padding: "6px 12px",
+                    fontFamily: MONO, fontSize: 10, letterSpacing: ".16em",
                     background: on ? C.stem : "transparent", color: on ? C.panel : C.muted,
-                    borderRight: id === "settings" ? "none" : "1px solid " + C.rule,
                   }}>{label.toUpperCase()}</button>
               );
             })}
           </div>
 
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
               <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", color: C.muted }}>SCRIPT</span>
-              <div style={{ display: "flex", border: "1px solid " + C.rule }}>
+              <div className="kd-seg">
                 {SCRIPTS.map((s) => {
                   const on = script === s.id;
                   return (
                     <button key={s.id} className="kd-btn kd-form-chip" onClick={() => setScript(s.id)}
                       title={s.id === "furigana" ? "Kanji with the reading above it" : s.id === "kanji" ? "Kanji only, no reading" : "Kana only, no kanji"}
                       style={{
-                        fontFamily: MINCHO, fontSize: 13, padding: "4px 9px 5px",
+                        fontFamily: MINCHO, fontSize: 13,
                         background: on ? C.ink : "transparent", color: on ? C.panel : C.muted,
-                        borderRight: s.id === "kana" ? "none" : "1px solid " + C.rule,
                       }}>{s.label}</button>
                   );
                 })}
@@ -1326,6 +1580,18 @@ export default function App() {
         <div style={{ maxWidth: 1120, margin: "0 auto", padding: 18 }}>
           <Quiz words={scopedWords} script={script} onProgress={setQuizRun} settings={settings} />
         </div>
+      )}
+
+      {view === "vocab" && (
+        <VocabView
+          words={words}
+          scopedCount={scopedWords.length}
+          script={script}
+          settings={settings}
+          onOpen={(id) => { setSelId(id); setView("deck"); }}
+          onAdd={() => { setAdding(true); setView("deck"); }}
+          onDelete={removeWord}
+        />
       )}
 
       {view === "settings" && (
@@ -1451,7 +1717,7 @@ export default function App() {
 
           <div className="kd-list" style={{ border: "1px solid " + C.rule, background: C.panel }}>
             {filtered.length === 0 && (
-              <div style={{ padding: 22, textAlign: "center" }}>
+              <div className="kd-empty" style={{ padding: 22, textAlign: "center" }}>
                 <div style={{ fontFamily: MINCHO, fontSize: 28, color: C.rule, marginBottom: 8 }}>空</div>
                 <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
                   {words.length === 0
