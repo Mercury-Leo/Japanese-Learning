@@ -607,7 +607,7 @@ function VocabView({ words, scopedCount, script, settings, stats, onOpen, onAdd,
 /* ============================================================
    QUIZ
    ============================================================ */
-function Quiz({ words, script, onProgress, settings, stats, onRecord }) {
+function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }) {
   /* A conjugation drill should not double as a kanji-reading drill by accident,
      so the reading stays visible here even when the deck is set to 漢字 only. */
   const qMode = script === "kana" ? "kana" : "furigana";
@@ -959,7 +959,7 @@ function Quiz({ words, script, onProgress, settings, stats, onRecord }) {
          rather than letting ruleKey mint an "undefined.te" bucket. */
       if (w) touched.add(ruleKey(w, q.kind.startsWith("mean") ? MEANING : q.formId).id);
     }
-    const runRules = byRule(stats, words, 3).filter((r) => touched.has(r.id));
+    const runRules = byRule(stats, allWords, 3).filter((r) => touched.has(r.id));
     return (
       <div style={{ display: "flex", gap: S[4] + 2, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ ...box, flex: "1 1 240px", minWidth: 230 }}>
@@ -1041,7 +1041,7 @@ function Quiz({ words, script, onProgress, settings, stats, onRecord }) {
                       {r.label}
                       {r.jp && <span style={{ fontFamily: MINCHO, color: C.muted, marginLeft: S[1] + 1 }}>{r.jp}</span>}
                     </span>
-                    <span style={{ flex: "0 0 64px", height: 4, background: C.ruleSoft, display: "flex" }}>
+                    <span style={{ flex: "0 0 72px", height: 4, background: C.ruleSoft, display: "flex" }}>
                       <span style={{ width: r.pct + "%", background: r.pct < 60 ? C.stem : C.aux }} />
                     </span>
                     <span style={{ fontFamily: MONO, fontSize: T.micro, color: C.muted, flex: "0 0 auto" }}>
@@ -1530,7 +1530,8 @@ export default function App() {
     setStats((s) => record(s, word, formId, ok, Date.now()));
   }
 
-  /** Merge an imported deck, skipping entries already present. */
+  /** Merge an imported deck, skipping entries already present, and merge in
+   *  the imported stats (if any) alongside them. */
   function importWords(incoming, incomingStats) {
     const have = new Set(words.map((w) => w.word + "|" + w.reading));
     const seen = new Set();
@@ -1776,7 +1777,7 @@ export default function App() {
 
       {view === "quiz" && (
         <div style={{ maxWidth: 1120, margin: "0 auto", padding: S[4] }}>
-          <Quiz words={scopedWords} script={script} onProgress={setQuizRun}
+          <Quiz words={scopedWords} allWords={words} script={script} onProgress={setQuizRun}
                 settings={settings} stats={stats} onRecord={recordAnswer} />
         </div>
       )}

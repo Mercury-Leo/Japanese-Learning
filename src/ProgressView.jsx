@@ -1,6 +1,6 @@
 import { C, MINCHO, MONO, T, JP, S } from "./theme.js";
 import { teRule } from "./engine.js";
-import { byRule, totals } from "./stats.js";
+import { byRule } from "./stats.js";
 
 /* The nine godan endings, in the order a 五段 table lists them. Each maps to one
    euphonic rule, so this grid is the whole class seen at once — the generalised
@@ -9,7 +9,13 @@ const ENDINGS = ["う", "つ", "る", "く", "ぐ", "す", "ぬ", "ぶ", "む"];
 
 export default function ProgressView({ stats, words }) {
   const all = byRule(stats, words, 1);
-  const t = totals(stats);
+  /* Deliberately "accuracy over the current deck", not "accuracy ever": stats
+     for deleted words are retained on purpose so a later re-import can restore
+     them, but a headline sitting above a list that excludes those words must
+     not count them either — otherwise the two disagree, and an emptied deck
+     shows a percentage over nothing. So the headline is derived from the same
+     `all` the list below renders, not from raw stats. */
+  const t = all.reduce((acc, r) => ({ n: acc.n + r.n, ok: acc.ok + r.ok }), { n: 0, ok: 0 });
   const pct = t.n ? Math.round((t.ok / t.n) * 100) : 0;
   const byId = new Map(all.map((r) => [r.id, r]));
 
@@ -41,7 +47,7 @@ export default function ProgressView({ stats, words }) {
       </div>
 
       <div className="kd-head">
-        <span className="kd-micro">Weakest rules</span>
+        <span className="kd-micro">By rule</span>
         <span style={{ fontFamily: MINCHO, fontSize: T.sm, color: C.muted }}>弱点</span>
         <span className="kd-rail" />
       </div>

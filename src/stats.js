@@ -73,8 +73,12 @@ const pct = (ok, n) => (n ? Math.round((ok / n) * 100) : 0);
  *  skipped rather than guessed at — their rows survive for a later re-import. */
 export function byRule(stats, words, minN = 1) {
   const out = new Map();
+  const seen = new Set();
   for (const w of words) {
-    const row = stats.entries[wordKey(w)];
+    const k = wordKey(w);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    const row = stats.entries[k];
     if (!row) continue;
     for (const formId of Object.keys(row)) {
       const { id, label, jp } = ruleKey(w, formId);
@@ -127,7 +131,7 @@ export function mergeStats(a, b) {
 
 /** Storage is untrusted: a hand-edited or truncated value must not crash boot. */
 export function mergeStored(stored) {
-  if (!stored || typeof stored !== "object" || !stored.entries || typeof stored.entries !== "object") return EMPTY;
+  if (!stored || typeof stored !== "object" || !stored.entries || typeof stored.entries !== "object") return { version: 1, entries: {} };
   const entries = {};
   for (const k of Object.keys(stored.entries)) {
     const row = stored.entries[k];
@@ -135,8 +139,12 @@ export function mergeStored(stored) {
     for (const f of Object.keys(row)) {
       const v = row[f];
       if (!v || typeof v.n !== "number" || typeof v.ok !== "number") continue;
+      /* Clamp rather than trust: a hand-edited or corrupted import can carry a
+         negative n or an ok that exceeds n, either of which yields a >100% bar. */
+      const n = Math.max(0, v.n);
+      const ok = Math.max(0, Math.min(v.ok, n));
       entries[k] = entries[k] || {};
-      entries[k][f] = { n: v.n, ok: v.ok, last: Number(v.last) || 0, streak: Number(v.streak) || 0 };
+      entries[k][f] = { n, ok, last: Number(v.last) || 0, streak: Number(v.streak) || 0 };
     }
   }
   return { version: 1, entries };

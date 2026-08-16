@@ -350,6 +350,7 @@ eq(rules[0].ok, 1, "one of them correct");
 eq(rules[0].pct, 33, "percentage rounds");
 eq(byRule(r, [nomu, asobu], 4).length, 0, "minN suppresses thin buckets");
 eq(byRule(r, []).length, 0, "words no longer in the deck are skipped, not crashed on");
+eq(byRule(r, [nomu, nomu])[0].n, byRule(r, [nomu])[0].n, "a duplicate deck entry is deduped, not double-counted");
 
 // per-word and overall
 eq(wordAccuracy(r, asobu).n, 2, "word accuracy sums that word's forms");
@@ -371,9 +372,9 @@ eq(statFor(mergeStats(EMPTY, a), nomu, "te").n, 1, "merging into EMPTY restores 
 eq(statFor(mergeStats(EMPTY, a), nomu, "te").ok, 1, "merging into EMPTY restores the incoming counts intact (correct)");
 
 // mergeStored defends untrusted boot and import data
-eq(mergeStored(null).entries, EMPTY.entries, "null returns empty-shaped output");
-eq(mergeStored({}).entries, EMPTY.entries, "missing entries key returns empty entries");
-eq(mergeStored({ entries: "not an object" }).entries, EMPTY.entries, "non-object entries returns empty");
+eq(Object.keys(mergeStored(null).entries).length, 0, "null returns empty-shaped output");
+eq(Object.keys(mergeStored({}).entries).length, 0, "missing entries key returns empty entries");
+eq(Object.keys(mergeStored({ entries: "not an object" }).entries).length, 0, "non-object entries returns empty");
 
 const stored = {
   entries: {
@@ -381,6 +382,7 @@ const stored = {
       te: { n: 3, ok: 2, last: 5000, streak: 1 },
       ta: { n: "not a number", ok: 1, last: 1000 },
       masu: { n: 2, ok: 2 },
+      kanou: { n: 2, ok: 3 },
     },
     "not an object": "invalid",
   },
@@ -390,6 +392,7 @@ eq(statFor(cleaned, nomu, "te").n, 3, "valid entry survives sanitization");
 eq(statFor(cleaned, nomu, "ta"), null, "entry with non-number n is dropped");
 eq(statFor(cleaned, nomu, "masu").last, 0, "missing last coerces to zero");
 eq(statFor(cleaned, nomu, "masu").streak, 0, "missing streak coerces to zero");
+eq(statFor(cleaned, nomu, "kanou").ok, 2, "ok is clamped to n rather than exceeding it");
 
 const pristine = { version: 1, entries: { "飲む|のむ": { te: { n: 5, ok: 3, last: 9999, streak: 2 } } } };
 const roundtrip = mergeStored(JSON.parse(JSON.stringify(pristine)));
