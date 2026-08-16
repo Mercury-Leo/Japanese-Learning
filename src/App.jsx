@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Plus, Trash2, X, Search, Volume2, Undo2, Download, Upload } from "lucide-react";
+import { Plus, Trash2, X, Search, Volume2, Undo2, Download, Upload, Settings as Cog } from "lucide-react";
 
 import { C, ROLE_COLOR, MINCHO, SANS, MONO, T, JP, RUBY, S, THEME_CSS, THEMES, applyTheme } from "./theme.js";
 import { storage, KEY, SKEY, GKEY, PKEY, readTheme, writeTheme } from "./storage.js";
@@ -11,7 +11,7 @@ import {
   MODS, stackInit, stackApply, columns, formText, formKana, answerMatches,
   shuffle, shuffleStable, meaningItems, REVERSE_SOURCES, SEED,
 } from "./engine.js";
-import { DEFAULTS, mergeSettings, visibleForms, visibleMods, wordInScope, JLPT } from "./settings.js";
+import { DEFAULTS, mergeSettings, visibleForms, visibleMods, wordInScope, JLPT, SCRIPTS } from "./settings.js";
 import SettingsView from "./SettingsView.jsx";
 import ProgressView from "./ProgressView.jsx";
 
@@ -38,12 +38,6 @@ function Word({ text, kana, mode, ruby = RUBY.md, rubyColor = C.muted, reserve =
     </span>
   );
 }
-
-const SCRIPTS = [
-  { id: "furigana", label: "漢字＋かな" },
-  { id: "kanji", label: "漢字" },
-  { id: "kana", label: "かな" },
-];
 
 /* ============================================================
    五段 ladder — the literal "five rows" a godan stem walks through
@@ -1674,6 +1668,13 @@ export default function App() {
         .kd-seg > button { height: 28px; padding: 0 11px; display: flex; align-items: center; }
         .kd-seg > button + button { border-left: 1px solid ${C.rule}; }
 
+        /* Square, and the same 28px as a segment button, so the cog sits on the
+           masthead's one horizontal rhythm instead of inventing a second. */
+        .kd-cog {
+          width: 28px; height: 28px; display: grid; place-items: center;
+          transition: background .15s, color .15s, border-color .15s;
+        }
+
         .kd-deck { flex: 1 1 260px; min-width: 250px; max-width: 320px; }
         .kd-stage { flex: 3 1 460px; min-width: 300px; }
         .kd-list { max-height: 68vh; overflow-y: auto; }
@@ -1709,53 +1710,51 @@ export default function App() {
 
       {/* masthead */}
       <header style={{ borderBottom: "1px solid " + C.rule, background: C.panel }}>
-        {/* justify-content plus one auto margin on the title packs every control
-            against the right edge: one line on a desktop, and on a phone the nav
-            stays flush right beside the title with the script row flush right
-            under it — no third row, nothing left hanging mid-width. */}
-        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "12px 18px", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 14, flexWrap: "wrap" }}>
-          {/* Title and tagline share a baseline; everything else centres on the row. */}
-          <div style={{ display: "flex", alignItems: "baseline", gap: S[3], minWidth: 0, marginRight: "auto" }}>
-            <div style={{ fontFamily: MINCHO, fontSize: 26, letterSpacing: ".08em", lineHeight: 1 }}>言葉帳</div>
-            <div className="kd-tagline kd-micro" style={{ letterSpacing: ".22em" }}>
-              Kotoba-chō · word deck &amp; morphology
-            </div>
-          </div>
-          <div className="kd-seg">
-            {[["deck", "Deck"], ["vocab", "Vocab"], ["quiz", "Quiz"], ["progress", "Progress"], ["settings", "Settings"]].map(([id, label]) => {
-              const on = view === id;
-              return (
-                <button key={id} className="kd-btn kd-form-chip" onClick={() => goto(id)}
-                  aria-current={on ? "page" : undefined}
-                  style={{
-                    fontFamily: MONO, fontSize: T.micro, letterSpacing: ".16em",
-                    background: on ? C.stem : "transparent", color: on ? C.panel : C.muted,
-                  }}>{label.toUpperCase()}</button>
-              );
-            })}
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: S[4] }}>
-            <div style={{ display: "flex", alignItems: "center", gap: S[2] }}>
-              <span className="kd-micro">SCRIPT</span>
-              <div className="kd-seg">
-                {SCRIPTS.map((s) => {
-                  const on = script === s.id;
-                  return (
-                    <button key={s.id} className="kd-btn kd-form-chip" onClick={() => setScript(s.id)}
-                      aria-pressed={on}
-                      title={s.id === "furigana" ? "Kanji with the reading above it" : s.id === "kanji" ? "Kanji only, no reading" : "Kana only, no kanji"}
-                      style={{
-                        fontFamily: MINCHO, fontSize: T.base,
-                        background: on ? C.ink : "transparent", color: on ? C.panel : C.muted,
-                      }}>{s.label}</button>
-                  );
-                })}
+        {/* Two rows. Identity and the settings cog own the top one; the four
+            destinations sit centred beneath, which is what makes them read as
+            the bar rather than as one more control crowded against the edge.
+            Settings is a cog and not a fifth tab because it is somewhere you
+            visit occasionally, not a peer of the things you work in — and
+            Script moved in there with it, being the one masthead control that
+            changed what you were looking at rather than where you were. */}
+        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "12px 18px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: S[3] }}>
+            {/* Title and tagline share a baseline. */}
+            <div style={{ display: "flex", alignItems: "baseline", gap: S[3], minWidth: 0, marginRight: "auto" }}>
+              <div style={{ fontFamily: MINCHO, fontSize: 26, letterSpacing: ".08em", lineHeight: 1 }}>言葉帳</div>
+              <div className="kd-tagline kd-micro" style={{ letterSpacing: ".22em" }}>
+                Kotoba-chō · word deck &amp; morphology
               </div>
             </div>
             <span className="kd-tagline kd-micro" style={{ letterSpacing: ".16em" }}>
               {scopedWords.length} ENTR{scopedWords.length === 1 ? "Y" : "IES"}
             </span>
+            <button className="kd-btn kd-cog" onClick={() => goto("settings")}
+              title="Settings" aria-label="Settings"
+              aria-current={view === "settings" ? "page" : undefined}
+              style={{
+                background: view === "settings" ? C.stem : "transparent",
+                color: view === "settings" ? C.panel : C.muted,
+                border: "1px solid " + (view === "settings" ? C.stem : C.rule),
+              }}>
+              <Cog size={15} />
+            </button>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "center", marginTop: S[3] }}>
+            <nav className="kd-seg" aria-label="Views">
+              {[["deck", "Deck"], ["vocab", "Vocab"], ["quiz", "Quiz"], ["progress", "Progress"]].map(([id, label]) => {
+                const on = view === id;
+                return (
+                  <button key={id} className="kd-btn kd-form-chip" onClick={() => goto(id)}
+                    aria-current={on ? "page" : undefined}
+                    style={{
+                      fontFamily: MONO, fontSize: T.micro, letterSpacing: ".16em",
+                      background: on ? C.stem : "transparent", color: on ? C.panel : C.muted,
+                    }}>{label.toUpperCase()}</button>
+                );
+              })}
+            </nav>
           </div>
         </div>
       </header>
@@ -1805,6 +1804,8 @@ export default function App() {
           formCount={settings.formIds.length}
           theme={theme}
           onTheme={setTheme}
+          script={script}
+          onScript={setScript}
         />
       )}
 

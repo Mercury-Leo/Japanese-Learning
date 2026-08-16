@@ -4,6 +4,15 @@ import { conjugate, TYPES, MODS } from "./engine.js";
 
 export const JLPT = ["N5", "N4", "N3", "N2", "N1"];
 
+/* How the Japanese is written. Lives here rather than in App.jsx because the
+   control moved into Settings, and Settings must not import from App. The hint
+   rides on the entry so the tooltip travels with the option. */
+export const SCRIPTS = [
+  { id: "furigana", label: "漢字＋かな", hint: "Kanji with the reading above it" },
+  { id: "kanji", label: "漢字", hint: "Kanji only, no reading" },
+  { id: "kana", label: "かな", hint: "Kana only, no kanji" },
+];
+
 /* One representative per word class, so the settings panel can list every form that
    exists with no word selected. SEED has no noun, hence 学生. */
 const REPS = [

@@ -1,6 +1,6 @@
-import { C, MONO, T, S, THEMES } from "./theme.js";
+import { C, MINCHO, MONO, T, S, THEMES } from "./theme.js";
 import { TYPES, MODS, GROUPS, typeLabel } from "./engine.js";
-import { allForms, PRESETS, applyPreset, JLPT } from "./settings.js";
+import { allForms, PRESETS, applyPreset, JLPT, SCRIPTS } from "./settings.js";
 import { getKey, setKey } from "./api.js";
 
 function Chip({ on, onClick, accent = C.aux, children }) {
@@ -31,7 +31,7 @@ function Section({ label, onAll, onNone, children }) {
 
 const THEME_LABEL = { system: "System", light: "Light", dark: "Dark" };
 
-export default function SettingsView({ settings, onChange, wordCount, formCount, theme, onTheme }) {
+export default function SettingsView({ settings, onChange, wordCount, formCount, theme, onTheme, script, onScript }) {
   const set = (patch) => onChange({ ...settings, ...patch });
   const toggle = (key, id) =>
     set({ [key]: settings[key].includes(id) ? settings[key].filter((x) => x !== id) : [...settings[key], id] });
@@ -51,6 +51,22 @@ export default function SettingsView({ settings, onChange, wordCount, formCount,
           {wordCount} words · {formCount} forms
         </span>
       </div>
+
+      <Section label="Script">
+        {SCRIPTS.map((s) => (
+          <button key={s.id} className="kd-btn kd-form-chip" onClick={() => onScript(s.id)}
+            aria-pressed={script === s.id} title={s.hint}
+            style={{
+              border: "1px solid " + (script === s.id ? C.ink : C.rule),
+              background: script === s.id ? C.ink : "transparent",
+              color: script === s.id ? C.panel : C.ink,
+              fontFamily: MINCHO, fontSize: T.md, padding: "5px 12px",
+            }}>{s.label}</button>
+        ))}
+        <span style={{ fontSize: T.fine, color: C.muted, lineHeight: 1.5, flex: "1 1 200px", alignSelf: "center" }}>
+          How every word is written across the app — the deck, the breakdown and the quiz all follow it.
+        </span>
+      </Section>
 
       <Section label="Appearance">
         {THEMES.map((t) => (
