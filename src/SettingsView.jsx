@@ -1,9 +1,7 @@
-import { C, MONO } from "./theme.js";
+import { C, MONO, T, S, THEMES } from "./theme.js";
 import { TYPES, MODS, GROUPS, typeLabel } from "./engine.js";
 import { allForms, PRESETS, applyPreset, JLPT } from "./settings.js";
 import { getKey, setKey } from "./api.js";
-
-const micro = { fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: C.muted };
 
 function Chip({ on, onClick, accent = C.aux, children }) {
   return (
@@ -12,49 +10,56 @@ function Chip({ on, onClick, accent = C.aux, children }) {
         border: "1px solid " + (on ? accent : C.rule),
         background: on ? accent : "transparent",
         color: on ? C.panel : C.ink,
-        padding: "6px 9px", fontSize: 11.5, textAlign: "left",
+        padding: "6px 9px", fontSize: T.fine, textAlign: "left",
       }}>{children}</button>
   );
 }
 
 function Section({ label, onAll, onNone, children }) {
   return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 8 }}>
-        <span style={micro}>{label}</span>
+    <div style={{ marginBottom: S[4] + 2 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: S[2], marginBottom: S[2] }}>
+        <span className="kd-micro">{label}</span>
         <span style={{ flex: 1, height: 1, background: C.rule }} />
-        {onAll && (
-          <button className="kd-btn" onClick={onAll} style={{ ...micro, fontSize: 8.5, color: C.aux }}>ALL</button>
-        )}
-        {onNone && (
-          <button className="kd-btn" onClick={onNone} style={{ ...micro, fontSize: 8.5, color: C.aux }}>NONE</button>
-        )}
+        {onAll && <button className="kd-btn kd-act" onClick={onAll}>ALL</button>}
+        {onNone && <button className="kd-btn kd-act" onClick={onNone}>NONE</button>}
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>{children}</div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: S[1] }}>{children}</div>
     </div>
   );
 }
 
-export default function SettingsView({ settings, onChange, wordCount, formCount }) {
+const THEME_LABEL = { system: "System", light: "Light", dark: "Dark" };
+
+export default function SettingsView({ settings, onChange, wordCount, formCount, theme, onTheme }) {
   const set = (patch) => onChange({ ...settings, ...patch });
   const toggle = (key, id) =>
     set({ [key]: settings[key].includes(id) ? settings[key].filter((x) => x !== id) : [...settings[key], id] });
   const forms = allForms();
 
   return (
-    <div style={{ maxWidth: 1120, margin: "0 auto", padding: "18px" }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-        <span style={micro}>Preset</span>
+    <div style={{ maxWidth: 1120, margin: "0 auto", padding: S[4] }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: S[3], marginBottom: S[4], flexWrap: "wrap" }}>
+        <span className="kd-micro">Preset</span>
         {Object.keys(PRESETS).map((name) => (
           <button key={name} className="kd-btn kd-form-chip" onClick={() => onChange(applyPreset(name, settings))}
-            style={{ border: "1px solid " + C.ink, background: "transparent", color: C.ink, padding: "6px 11px", fontSize: 11.5 }}>
+            style={{ border: "1px solid " + C.ink, background: "transparent", color: C.ink, padding: "6px 11px", fontSize: T.fine }}>
             {name}
           </button>
         ))}
-        <span style={{ ...micro, marginLeft: "auto", color: C.stem }}>
+        <span className="kd-micro" style={{ marginLeft: "auto", color: C.stem }}>
           {wordCount} words · {formCount} forms
         </span>
       </div>
+
+      <Section label="Appearance">
+        {THEMES.map((t) => (
+          <Chip key={t} on={theme === t} onClick={() => onTheme(t)}>{THEME_LABEL[t]}</Chip>
+        ))}
+        <span style={{ fontSize: T.fine, color: C.muted, lineHeight: 1.5, flex: "1 1 200px", alignSelf: "center" }}>
+          System follows your device. Stored on this device only — it is not part of the deck you export.
+        </span>
+      </Section>
 
       {GROUPS.map((grp) => {
         const items = forms.filter((f) => f.group === grp);
@@ -67,7 +72,7 @@ export default function SettingsView({ settings, onChange, wordCount, formCount 
             {items.map((f) => (
               <Chip key={f.id} on={settings.formIds.includes(f.id)} onClick={() => toggle("formIds", f.id)}>
                 {f.label}
-                <span style={{ fontFamily: MONO, fontSize: 8.5, marginLeft: 5, opacity: .7 }}>{f.jp}</span>
+                <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{f.jp}</span>
               </Chip>
             ))}
           </Section>
@@ -80,7 +85,7 @@ export default function SettingsView({ settings, onChange, wordCount, formCount 
         {MODS.map((m) => (
           <Chip key={m.id} on={settings.modIds.includes(m.id)} onClick={() => toggle("modIds", m.id)}>
             {m.label}
-            <span style={{ fontFamily: MONO, fontSize: 8.5, marginLeft: 5, opacity: .7 }}>{m.jp}</span>
+            <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{m.jp}</span>
           </Chip>
         ))}
       </Section>
@@ -91,7 +96,7 @@ export default function SettingsView({ settings, onChange, wordCount, formCount 
         {TYPES.map((t) => (
           <Chip key={t.id} on={settings.types.includes(t.id)} onClick={() => toggle("types", t.id)}>
             {t.label}
-            <span style={{ fontFamily: MONO, fontSize: 8.5, marginLeft: 5, opacity: .7 }}>{typeLabel(t.id)}</span>
+            <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{typeLabel(t.id)}</span>
           </Chip>
         ))}
       </Section>
@@ -100,10 +105,10 @@ export default function SettingsView({ settings, onChange, wordCount, formCount 
         {JLPT.map((lv) => (
           <Chip key={lv} on={settings.jlpt.includes(lv)} onClick={() => toggle("jlpt", lv)}>{lv}</Chip>
         ))}
-        <span style={{ width: 14 }} />
+        <span style={{ width: S[4] }} />
         <Chip on={settings.trans.includes("trans")} onClick={() => toggle("trans", "trans")}>他動詞</Chip>
         <Chip on={settings.trans.includes("intrans")} onClick={() => toggle("trans", "intrans")}>自動詞</Chip>
-        <span style={{ width: 14 }} />
+        <span style={{ width: S[4] }} />
         <Chip accent={C.stem} on={settings.commonOnly} onClick={() => set({ commonOnly: !settings.commonOnly })}>
           Common words only
         </Chip>
@@ -126,10 +131,10 @@ export default function SettingsView({ settings, onChange, wordCount, formCount 
             autoComplete="off" spellCheck={false} aria-label="Anthropic API key"
             placeholder="sk-ant-..."
             style={{
-              width: "100%", maxWidth: 420, padding: "8px 10px", fontFamily: MONO, fontSize: 12,
-              border: "1px solid " + C.rule, background: "transparent", color: C.ink, borderRadius: 2,
+              width: "100%", maxWidth: 420, padding: "8px 10px", fontFamily: MONO, fontSize: T.sm,
+              border: "1px solid " + C.rule, background: "transparent", color: C.ink,
             }} />
-          <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.6, marginTop: 8 }}>
+          <div style={{ fontSize: T.fine, color: C.muted, lineHeight: 1.6, marginTop: S[2] }}>
             Optional. Lookup uses the built-in JMdict dictionary and needs no key — a key only
             adds example sentences, and lookup for words outside the common 26,000. Stored on
             this device, not in the deck you export. Anyone with this phone unlocked can read it
@@ -138,7 +143,7 @@ export default function SettingsView({ settings, onChange, wordCount, formCount 
         </div>
       </Section>
 
-      <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.6, borderTop: "1px solid " + C.ruleSoft, paddingTop: 12 }}>
+      <div style={{ fontSize: T.fine, color: C.muted, lineHeight: 1.6, borderTop: "1px solid " + C.ruleSoft, paddingTop: S[3] }}>
         Word scope only filters words that carry the matching tag. A word with no JLPT level,
         no transitivity or no frequency is never hidden, so nothing you have already added
         can disappear here.

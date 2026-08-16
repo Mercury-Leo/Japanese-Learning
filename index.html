@@ -11,7 +11,15 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="言葉帳" />
     <style>
+      /* First paint happens before any JS, so the ground colour is duplicated
+         here rather than read from a custom property. Kept in step with
+         GROUND in src/theme.js. The data-theme guard means an explicit light
+         choice does not flash dark on a dark-preferring system. */
       html, body { margin: 0; padding: 0; background: #e6e9e3; }
+      @media (prefers-color-scheme: dark) {
+        html:not([data-theme="light"]), html:not([data-theme="light"]) body { background: #161917; }
+      }
+      html[data-theme="dark"], html[data-theme="dark"] body { background: #161917; }
       * { box-sizing: border-box; }
     </style>
   </head>

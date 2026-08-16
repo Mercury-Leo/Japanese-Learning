@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Plus, Trash2, X, Search, Volume2, Undo2, Download, Upload } from "lucide-react";
 
-import { C, ROLE_COLOR, MINCHO, SANS, MONO } from "./theme.js";
-import { storage, KEY, SKEY, GKEY } from "./storage.js";
+import { C, ROLE_COLOR, MINCHO, SANS, MONO, T, JP, RUBY, S, THEME_CSS, THEMES, applyTheme } from "./theme.js";
+import { storage, KEY, SKEY, GKEY, readTheme, writeTheme } from "./storage.js";
 import { SPEECH_OK, speak, useSpeechStatus, setAudioReporter } from "./speech.js";
 import { lookupWord, fetchExamples, warmDict } from "./api.js";
 import {
@@ -18,7 +18,7 @@ import SettingsView from "./SettingsView.jsx";
    Furigana is aligned to the kanji only: 食べ reads た over 食,
    never たべ smeared across both characters.
    ============================================================ */
-function Word({ text, kana, mode, ruby = 11, rubyColor = C.muted, reserve = false }) {
+function Word({ text, kana, mode, ruby = RUBY.md, rubyColor = C.muted, reserve = false }) {
   const cols = columns(text, kana, mode);
   const showRuby = mode === "furigana" && (reserve || cols.some((c) => c.ruby));
   return (
@@ -64,14 +64,14 @@ function Ladder({ row, active }) {
           <div key={c.tag} style={{ textAlign: "center", width: 34 }}>
             <div
               style={{
-                fontFamily: MINCHO, fontSize: 20, lineHeight: "34px", height: 34,
+                fontFamily: MINCHO, fontSize: JP.md, lineHeight: "34px", height: 34,
                 color: on ? C.panel : C.muted,
                 background: on ? C.stem : "transparent",
                 border: "1px solid " + (on ? C.stem : C.ruleSoft),
                 transition: "background .18s, color .18s",
               }}
             >{c.k}</div>
-            <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: ".14em", color: on ? C.stem : C.muted, marginTop: 3 }}>{c.tag.toUpperCase()}</div>
+            <div className="kd-micro" style={{ letterSpacing: ".14em", color: on ? C.stem : C.muted, marginTop: S[1] }}>{c.tag.toUpperCase()}</div>
           </div>
         );
       })}
@@ -83,12 +83,15 @@ function Ladder({ row, active }) {
    AUDIO — Web Speech, no dependency. Reads the kana so the engine
    never has to guess a kanji reading.
    ============================================================ */
+/* Holds its footprint when disabled rather than unmounting — otherwise toggling
+   audio off in Settings reflows every row and heading that contains one. */
 function Say({ text, size = 13, color = C.muted, label = "Play", enabled = true }) {
-  if (!text || !enabled) return null;
+  if (!text) return null;
+  if (!enabled) return <span aria-hidden="true" style={{ display: "inline-block", width: size + 12, flexShrink: 0 }} />;
   return (
     <button className="kd-btn" title={label} aria-label={label}
       onClick={(e) => { e.stopPropagation(); speak(text); }}
-      style={{ color: SPEECH_OK ? color : C.rule, padding: 6, lineHeight: 0, flexShrink: 0 }}>
+      style={{ color: SPEECH_OK ? color : C.rule, padding: S[1] + 2, lineHeight: 0, flexShrink: 0 }}>
       <Volume2 size={size} />
     </button>
   );
@@ -98,9 +101,9 @@ function Say({ text, size = 13, color = C.muted, label = "Play", enabled = true 
    MORPHEME STRIP — shared by the study view, the stack builder
    and the quiz reveal.
    ============================================================ */
-function Strip({ segs, script, size = "clamp(21px, 6.4vw, 32px)", ruby = "clamp(8px, 2.2vw, 11px)", onPick, activeIdx, glosses: showGlosses = true }) {
+function Strip({ segs, script, size = JP.strip, ruby = RUBY.strip, onPick, activeIdx, glosses: showGlosses = true }) {
   return (
-    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "flex-end" }}>
+    <div style={{ display: "flex", gap: S[1], flexWrap: "wrap", alignItems: "flex-end" }}>
       {segs.map((s, i) => {
         const col = ROLE_COLOR[s.role];
         const on = activeIdx === i;
@@ -116,10 +119,10 @@ function Strip({ segs, script, size = "clamp(21px, 6.4vw, 32px)", ruby = "clamp(
               <Word text={s.text} kana={s.kana} mode={script} ruby={ruby} rubyColor={col} reserve />
             </div>
             {showGlosses && (
-              <div style={{
-                fontFamily: MONO, fontSize: 8, letterSpacing: ".1em", marginTop: 4,
+              <div className="kd-gloss" style={{
+                marginTop: S[1],
                 color: on ? C.panel : col, background: on ? col : "transparent",
-                border: "1px solid " + col, padding: "1px 4px",
+                border: "1px solid " + col,
               }}>{s.gloss}</div>
             )}
           </Tag>
@@ -146,93 +149,91 @@ function StackPanel({ word, script, settings }) {
   const avail = enabled.filter((m) => m.from.includes(st.cls));
   const kana = st.segs.map((s) => s.kana).join("");
   const active = pick != null ? st.segs[pick] : null;
-  const micro = { fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: C.muted };
 
   return (
-    <div style={{ marginTop: 20, border: "1px solid " + C.rule, background: C.panel, padding: "15px 15px 13px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-        <span style={micro}>Stack forms</span>
-        <span style={{ fontFamily: MINCHO, fontSize: 12, color: C.muted }}>活用を重ねる</span>
-        <span style={{ flex: 1, minWidth: 20, height: 1, background: C.ruleSoft }} />
+    <section className="kd-panel-sub" style={{ marginTop: S[5] }}>
+      <div className="kd-head">
+        <span className="kd-micro">Stack forms</span>
+        <span style={{ fontFamily: MINCHO, fontSize: T.sm, color: C.muted }}>活用を重ねる</span>
+        <span className="kd-rail" />
         {chain.length > 0 && (
           <>
-            <button className="kd-btn" onClick={() => { setChain(chain.slice(0, -1)); setPick(null); }}
-              style={{ ...micro, letterSpacing: ".1em", color: C.aux, display: "flex", alignItems: "center", gap: 3 }}>
+            <button className="kd-btn kd-act" onClick={() => { setChain(chain.slice(0, -1)); setPick(null); }}
+              style={{ display: "flex", alignItems: "center", gap: S[1] }}>
               <Undo2 size={11} /> Undo
             </button>
-            <button className="kd-btn" onClick={() => { setChain([]); setPick(null); }}
-              style={{ ...micro, letterSpacing: ".1em", color: C.aux }}>Reset</button>
+            <button className="kd-btn kd-act" onClick={() => { setChain([]); setPick(null); }}>Reset</button>
           </>
         )}
       </div>
 
       {/* the chain so far */}
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center", marginBottom: 13, minHeight: 20 }}>
-        <span style={{ fontFamily: MONO, fontSize: 9, color: C.muted }}>{word.word}</span>
+      <div style={{ display: "flex", gap: S[1], flexWrap: "wrap", alignItems: "center", marginBottom: S[3], minHeight: S[5] }}>
+        <span style={{ fontFamily: MONO, fontSize: T.micro, color: C.muted }}>{word.word}</span>
         {chain.map((id, i) => {
           const m = MODS.find((x) => x.id === id);
           return (
-            <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <span style={{ color: C.rule, fontSize: 11 }}>›</span>
-              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".08em", color: C.panel, background: C.aux, padding: "2px 5px" }}>
+            <span key={i} style={{ display: "flex", alignItems: "center", gap: S[1] }}>
+              <span style={{ color: C.rule, fontSize: T.fine }}>›</span>
+              <span style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".08em", color: C.panel, background: C.aux, padding: "2px 5px" }}>
                 {m ? m.label.toUpperCase() : id}
               </span>
             </span>
           );
         })}
-        {chain.length === 0 && <span style={{ fontSize: 11.5, color: C.muted, marginLeft: 4 }}>— add a modifier below and they compound</span>}
+        {chain.length === 0 && <span style={{ fontSize: T.fine, color: C.muted, marginLeft: S[1] }}>— add a modifier below and they compound</span>}
       </div>
 
       {/* result */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: S[2], marginBottom: S[3] }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <Strip segs={st.segs} script={script} onPick={setPick} activeIdx={pick} glosses={settings.show.glosses} />
           {settings.show.romaji && (
-            <div style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted, marginTop: 7 }}>{romaji(kana)}</div>
+            <div style={{ fontFamily: MONO, fontSize: T.fine, color: C.muted, marginTop: S[2] }}>{romaji(kana)}</div>
           )}
         </div>
         <Say text={kana} size={15} label="Play this form" enabled={settings.show.audio} />
       </div>
 
       {active && (
-        <div style={{ borderTop: "1px solid " + C.ruleSoft, paddingTop: 11, marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "flex-end", gap: 7, marginBottom: 4 }}>
-            <span style={{ fontFamily: MINCHO, fontSize: 16, color: ROLE_COLOR[active.role] }}>{active.text}</span>
-            <span style={{ fontSize: 12.5, fontWeight: 600 }}>{active.title}</span>
+        <div style={{ borderTop: "1px solid " + C.ruleSoft, paddingTop: S[3], marginBottom: S[3] }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: S[2], marginBottom: S[1] }}>
+            <span style={{ fontFamily: MINCHO, fontSize: JP.sm, color: ROLE_COLOR[active.role] }}>{active.text}</span>
+            <span style={{ fontSize: T.base, fontWeight: 600 }}>{active.title}</span>
           </div>
-          <div style={{ fontSize: 12.5, lineHeight: 1.6, color: "#3b433e" }}>{active.body}</div>
+          <div style={{ fontSize: T.base, lineHeight: 1.65, color: C.body }}>{active.body}</div>
         </div>
       )}
 
       {/* what can still be applied */}
-      <div style={{ borderTop: "1px solid " + C.ruleSoft, paddingTop: 11 }}>
+      <div style={{ borderTop: "1px solid " + C.ruleSoft, paddingTop: S[3] }}>
         {enabled.length === 0 ? (
-          <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55 }}>
+          <div style={{ fontSize: T.sm, color: C.muted, lineHeight: 1.55 }}>
             No stack modifiers enabled. Turn some on in Settings.
           </div>
         ) : avail.length === 0 ? (
-          <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55 }}>
+          <div style={{ fontSize: T.sm, color: C.muted, lineHeight: 1.55 }}>
             Nothing more attaches here — ます, た and て close a chain. Undo to branch off somewhere else.
           </div>
         ) : (
           <>
-            <div style={{ ...micro, fontSize: 8.5, marginBottom: 7 }}>
+            <div className="kd-micro" style={{ marginBottom: S[2] }}>
               Add · currently {st.cls === "closed" ? "closed" : st.cls === "i-adj" ? "behaves as an い-adjective" : st.cls === "ichidan" ? "behaves as an ichidan verb" : st.cls}
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: S[1] }}>
               {avail.map((m) => (
                 <button key={m.id} className="kd-btn kd-form-chip" title={m.hint}
                   onClick={() => { setChain([...chain, m.id]); setPick(null); }}
-                  style={{ border: "1px solid " + C.rule, background: C.panel, padding: "6px 9px", fontSize: 11.5, textAlign: "left" }}>
+                  style={{ border: "1px solid " + C.rule, background: C.panel, padding: "6px 9px", fontSize: T.fine, textAlign: "left" }}>
                   {m.label}
-                  <span style={{ fontFamily: MINCHO, fontSize: 10, color: C.muted, marginLeft: 5 }}>{m.jp}</span>
+                  <span style={{ fontFamily: MINCHO, fontSize: T.micro, color: C.muted, marginLeft: S[1] }}>{m.jp}</span>
                 </button>
               ))}
             </div>
           </>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -258,7 +259,6 @@ function ExamplesPanel({ word, script, onSave, settings }) {
   const [err, setErr] = useState(null);
   const forms = useMemo(() => conjugate(word), [word]);
   const list = word.examples || [];
-  const micro = { fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: C.muted };
 
   async function run() {
     if (busy) return;
@@ -273,53 +273,50 @@ function ExamplesPanel({ word, script, onSave, settings }) {
   }
 
   return (
-    <div style={{ marginTop: 20, border: "1px solid " + C.rule, background: C.panel, padding: "15px 15px 13px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-        <span style={micro}>In context</span>
-        <span style={{ fontFamily: MINCHO, fontSize: 12, color: C.muted }}>例文</span>
-        <span style={{ flex: 1, minWidth: 20, height: 1, background: C.ruleSoft }} />
-        <button className="kd-btn" onClick={run} disabled={busy}
-          style={{
-            ...micro, letterSpacing: ".1em", color: busy ? C.rule : C.aux,
-            cursor: busy ? "default" : "pointer",
-          }}>
+    <section className="kd-panel-sub" style={{ marginTop: S[5] }}>
+      <div className="kd-head">
+        <span className="kd-micro">In context</span>
+        <span style={{ fontFamily: MINCHO, fontSize: T.sm, color: C.muted }}>例文</span>
+        <span className="kd-rail" />
+        <button className="kd-btn kd-act" onClick={run} disabled={busy}
+          style={{ color: busy ? C.rule : C.aux, cursor: busy ? "default" : "pointer" }}>
           {busy ? "Writing…" : list.length ? "Replace" : "Get sentences"}
         </button>
       </div>
 
-      {err && <div style={{ borderLeft: "3px solid " + C.stem, background: C.panelAlt, padding: "8px 10px", fontSize: 11.5, lineHeight: 1.5, marginBottom: 10 }}>{err}</div>}
+      {err && <div className="kd-note" style={{ borderLeftColor: C.stem, marginBottom: S[3] }}>{err}</div>}
 
       {list.length === 0 && !err && (
-        <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+        <div style={{ fontSize: T.sm, color: C.muted, lineHeight: 1.6 }}>
           A conjugation table doesn't tell you when to use て over たら. Pull a few sentences and each form gets a situation attached to it.
         </div>
       )}
 
-      <div style={{ display: "grid", gap: 14 }}>
+      <div style={{ display: "grid", gap: S[4] }}>
         {list.map((e, i) => {
           const f = detectForm(e.ja, forms);
           return (
-            <div key={i} style={{ borderLeft: "3px solid " + C.ruleSoft, paddingLeft: 10 }}>
+            <div key={i} style={{ borderLeft: "3px solid " + C.ruleSoft, paddingLeft: S[3] }}>
               {f && (
-                <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: ".14em", color: C.aux, marginBottom: 4 }}>
+                <div className="kd-micro" style={{ letterSpacing: ".14em", color: C.aux, marginBottom: S[1] }}>
                   USES {f.label.toUpperCase()}
                 </div>
               )}
               {script !== "kana" && (
-                <div style={{ fontFamily: MINCHO, fontSize: 10.5, color: C.muted, letterSpacing: ".04em" }}>{e.kana}</div>
+                <div style={{ fontFamily: MINCHO, fontSize: T.fine, color: C.muted, letterSpacing: ".04em" }}>{e.kana}</div>
               )}
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 4 }}>
-                <div style={{ fontFamily: MINCHO, fontSize: "clamp(15px, 4.4vw, 18px)", lineHeight: 1.5, flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: S[1] }}>
+                <div style={{ fontFamily: MINCHO, fontSize: JP.sm, lineHeight: 1.55, flex: 1 }}>
                   {script === "kana" ? e.kana : e.ja}
                 </div>
                 <Say text={e.kana} label="Play sentence" enabled={settings.show.audio} />
               </div>
-              <div style={{ fontSize: 12, color: C.muted, marginTop: 3, lineHeight: 1.5 }}>{e.en}</div>
+              <div style={{ fontSize: T.sm, color: C.muted, marginTop: S[1], lineHeight: 1.5 }}>{e.en}</div>
             </div>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -389,20 +386,17 @@ function DeckTools({ words, onImport }) {
     e.target.value = "";
   }
 
-  const link = { fontFamily: MONO, fontSize: 9, letterSpacing: ".14em", color: C.aux, display: "flex", alignItems: "center", gap: 4 };
+  const link = { display: "flex", alignItems: "center", gap: S[1], letterSpacing: ".14em" };
   return (
-    <div style={{ marginTop: 10 }}>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-        <button className="kd-btn" onClick={exportDeck} style={link}><Download size={11} /> EXPORT</button>
-        <button className="kd-btn" onClick={() => fileRef.current && fileRef.current.click()} style={link}><Upload size={11} /> IMPORT</button>
-        <button className="kd-btn" onClick={copyDeck} style={link}>COPY JSON</button>
+    <div style={{ marginTop: S[3] }}>
+      <div style={{ display: "flex", gap: S[3], flexWrap: "wrap", alignItems: "center" }}>
+        <button className="kd-btn kd-act" onClick={exportDeck} style={link}><Download size={11} /> EXPORT</button>
+        <button className="kd-btn kd-act" onClick={() => fileRef.current && fileRef.current.click()} style={link}><Upload size={11} /> IMPORT</button>
+        <button className="kd-btn kd-act" onClick={copyDeck} style={link}>COPY JSON</button>
         <input ref={fileRef} type="file" accept="application/json,.json" onChange={readFile} style={{ display: "none" }} />
       </div>
       {note && (
-        <div style={{
-          marginTop: 7, fontSize: 11, lineHeight: 1.5, padding: "6px 8px",
-          background: C.panelAlt, borderLeft: "3px solid " + (note.kind === "ok" ? C.aux : C.stem),
-        }}>{note.text}</div>
+        <div className="kd-note" style={{ marginTop: S[2], borderLeftColor: note.kind === "ok" ? C.aux : C.stem }}>{note.text}</div>
       )}
     </div>
   );
@@ -431,26 +425,24 @@ function ConfirmModal({ eyebrow, stat, statLabel, body, confirmLabel, cancelLabe
   return (
     <div className="kd-scrim" onClick={onCancel}>
       <div className="kd-modal" role="dialog" aria-modal="true" aria-label={body} onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: C.stem }}>
-          {eyebrow}
-        </div>
+        <div className="kd-micro" style={{ color: C.stem }}>{eyebrow}</div>
 
         {stat && (
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 12 }}>
-            <span style={{ fontFamily: MINCHO, fontSize: 40, lineHeight: 1, color: C.ink }}>{stat}</span>
-            <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".16em", textTransform: "uppercase", color: C.muted }}>{statLabel}</span>
+          <div style={{ display: "flex", alignItems: "baseline", gap: S[2], marginTop: S[3] }}>
+            <span style={{ fontFamily: MINCHO, fontSize: JP.figure, lineHeight: 1, color: C.ink }}>{stat}</span>
+            <span className="kd-micro" style={{ letterSpacing: ".16em" }}>{statLabel}</span>
           </div>
         )}
 
-        <div style={{ fontSize: 13, lineHeight: 1.6, marginTop: stat ? 10 : 10, color: C.ink }}>{body}</div>
+        <div style={{ fontSize: T.base, lineHeight: 1.6, marginTop: S[3], color: C.ink }}>{body}</div>
 
-        <div style={{ display: "flex", gap: 7, marginTop: 18 }}>
+        <div style={{ display: "flex", gap: S[2], marginTop: S[4] }}>
           <button className="kd-btn" onClick={onConfirm}
-            style={{ flex: 1, background: C.stem, color: C.panel, padding: "11px 0", fontSize: 13 }}>
+            style={{ flex: 1, background: C.stem, color: C.panel, padding: "11px 0", fontSize: T.base }}>
             {confirmLabel}
           </button>
           <button className="kd-btn" onClick={onCancel} autoFocus
-            style={{ flex: 1, border: "1px solid " + C.ink, background: C.panel, color: C.ink, padding: "11px 0", fontSize: 13 }}>
+            style={{ flex: 1, border: "1px solid " + C.ink, background: C.panel, color: C.ink, padding: "11px 0", fontSize: T.base }}>
             {cancelLabel}
           </button>
         </div>
@@ -478,7 +470,6 @@ function VocabView({ words, scopedCount, script, settings, onOpen, onAdd, onDele
   const [q, setQ] = useState("");
   const [confirm, setConfirm] = useState(null);
 
-  const micro = { fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: C.muted };
   const need = q.trim().toLowerCase();
   const inGroup = (w, g) => !g.types || g.types.includes(w.type);
   const group = VOCAB_GROUPS.find((x) => x.id === grp) || VOCAB_GROUPS[0];
@@ -487,10 +478,10 @@ function VocabView({ words, scopedCount, script, settings, onOpen, onAdd, onDele
     (!need || (w.word + w.reading + w.meaning + romaji(w.reading)).toLowerCase().includes(need)));
   const doomed = confirm ? words.find((w) => w.id === confirm) : null;
 
-  const tag = { fontFamily: MONO, fontSize: 8.5, letterSpacing: ".12em", padding: "1px 5px", border: "1px solid " + C.ruleSoft, color: C.muted };
+  const tag = { fontFamily: MONO, fontSize: T.micro, letterSpacing: ".12em", padding: "1px 5px", border: "1px solid " + C.ruleSoft, color: C.muted };
 
   return (
-    <div style={{ maxWidth: 1120, margin: "0 auto", padding: 18 }}>
+    <div style={{ maxWidth: 1120, margin: "0 auto", padding: S[4] }}>
       {doomed && (
         <ConfirmModal
           eyebrow="Remove from vocabulary"
@@ -504,13 +495,13 @@ function VocabView({ words, scopedCount, script, settings, onOpen, onAdd, onDele
         />
       )}
 
-      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: S[2], alignItems: "center", flexWrap: "wrap", marginBottom: S[3] }}>
         <div style={{ position: "relative", flex: "1 1 200px", minWidth: 170 }}>
           <Search size={13} style={{ position: "absolute", left: 9, top: 11, color: C.muted }} />
-          <input className="kd-in" style={{ paddingLeft: 27, fontSize: 13 }} placeholder="Search everything you track"
+          <input className="kd-in" style={{ paddingLeft: 27, fontSize: T.base }} placeholder="Search everything you track"
             value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: S[1] }}>
           {VOCAB_GROUPS.map((g) => {
             const on = g.id === grp;
             const n = words.filter((w) => inGroup(w, g)).length;
@@ -518,26 +509,26 @@ function VocabView({ words, scopedCount, script, settings, onOpen, onAdd, onDele
               <button key={g.id} className="kd-btn kd-form-chip" onClick={() => setGrp(g.id)}
                 style={{
                   border: "1px solid " + (on ? C.ink : C.rule), background: on ? C.ink : C.panel,
-                  color: on ? C.panel : C.ink, padding: "6px 10px", fontSize: 11.5,
+                  color: on ? C.panel : C.ink, padding: "6px 10px", fontSize: T.fine,
                 }}>
                 {g.label}
-                <span style={{ fontFamily: MINCHO, fontSize: 10, marginLeft: 5, opacity: .7 }}>{g.jp}</span>
-                <span style={{ fontFamily: MONO, fontSize: 8.5, marginLeft: 5, opacity: .7 }}>{n}</span>
+                <span style={{ fontFamily: MINCHO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{g.jp}</span>
+                <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{n}</span>
               </button>
             );
           })}
         </div>
         <button className="kd-btn" onClick={onAdd}
-          style={{ background: C.stem, color: C.panel, padding: "8px 12px", fontSize: 12, display: "flex", alignItems: "center", gap: 5 }}>
+          style={{ background: C.stem, color: C.panel, padding: "8px 12px", fontSize: T.sm, display: "flex", alignItems: "center", gap: S[1] }}>
           <Plus size={13} /> Add a word
         </button>
       </div>
 
       <div style={{ border: "1px solid " + C.rule, background: C.panel }}>
         {list.length === 0 ? (
-          <div style={{ padding: 40, textAlign: "center" }}>
-            <div style={{ fontFamily: MINCHO, fontSize: 34, color: C.rule }}>空</div>
-            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 8, lineHeight: 1.6 }}>
+          <div style={{ padding: S[6] + S[2], textAlign: "center" }}>
+            <div style={{ fontFamily: MINCHO, fontSize: JP.display, color: C.rule }}>空</div>
+            <div style={{ fontSize: T.base, color: C.muted, marginTop: S[2], lineHeight: 1.6 }}>
               {words.length === 0
                 ? "Nothing tracked yet. Add a word — verb, adjective or plain noun, they all live here."
                 : need
@@ -548,29 +539,29 @@ function VocabView({ words, scopedCount, script, settings, onOpen, onAdd, onDele
         ) : list.map((w) => (
           <div key={w.id} className="kd-row" onClick={() => onOpen(w.id)}
             style={{
-              display: "flex", alignItems: "center", gap: 14, padding: "10px 13px", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: S[4], padding: "10px 13px", cursor: "pointer",
               borderBottom: "1px solid " + C.ruleSoft, flexWrap: "wrap",
             }}>
             <div style={{ flex: "0 1 200px", minWidth: 130 }}>
-              <div style={{ fontFamily: MINCHO, fontSize: 21 }}>
-                <Word text={w.word} kana={w.reading} mode={script} ruby={9} />
+              <div style={{ fontFamily: MINCHO, fontSize: JP.md }}>
+                <Word text={w.word} kana={w.reading} mode={script} ruby={RUBY.sm} />
               </div>
               {settings.show.romaji && (
-                <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.muted, letterSpacing: ".05em", marginTop: 1 }}>{romaji(w.reading)}</div>
+                <div style={{ fontFamily: MONO, fontSize: T.micro, color: C.muted, letterSpacing: ".05em", marginTop: 1 }}>{romaji(w.reading)}</div>
               )}
             </div>
-            <div style={{ flex: "3 1 220px", minWidth: 150, fontSize: 13, lineHeight: 1.5 }}>
+            <div style={{ flex: "3 1 220px", minWidth: 150, fontSize: T.base, lineHeight: 1.5 }}>
               {w.meaning || <span style={{ color: C.muted }}>no gloss — open it to add one</span>}
             </div>
-            <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap", marginLeft: "auto" }}>
-              <span style={{ ...tag, fontFamily: MINCHO, fontSize: 11, letterSpacing: 0, color: C.aux, borderColor: C.aux }}>{typeLabel(w.type)}</span>
+            <div style={{ display: "flex", gap: S[1], alignItems: "center", flexWrap: "wrap", marginLeft: "auto" }}>
+              <span style={{ ...tag, fontFamily: MINCHO, fontSize: T.fine, letterSpacing: 0, color: C.aux, borderColor: C.aux }}>{typeLabel(w.type)}</span>
               {w.jlpt && <span style={tag}>{w.jlpt}</span>}
               {(w.trans === "trans" || w.trans === "intrans") && <span style={tag}>{w.trans === "trans" ? "他" : "自"}</span>}
               {w.common === true && <span style={tag}>COMMON</span>}
               <Say text={w.reading} label={"Play " + w.word} enabled={settings.show.audio} />
-              <button className="kd-btn" title={"Delete " + w.word}
+              <button className="kd-btn kd-del" title={"Delete " + w.word}
                 onClick={(e) => { e.stopPropagation(); setConfirm(w.id); }}
-                style={{ color: C.rule, padding: 8, margin: -2 }}>
+                style={{ padding: S[2], margin: -2 }}>
                 <Trash2 size={13} />
               </button>
             </div>
@@ -578,10 +569,10 @@ function VocabView({ words, scopedCount, script, settings, onOpen, onAdd, onDele
         ))}
       </div>
 
-      <div style={{ ...micro, fontSize: 9, marginTop: 10, lineHeight: 1.7 }}>
+      <div className="kd-micro" style={{ marginTop: S[3], lineHeight: 1.7 }}>
         {list.length} shown · {words.length} tracked
         {scopedCount < words.length && (
-          <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: SANS, fontSize: 11.5, marginLeft: 8 }}>
+          <span style={{ textTransform: "none", letterSpacing: 0, fontFamily: SANS, fontSize: T.fine, marginLeft: S[2] }}>
             The deck and quiz currently see {scopedCount} of them — the rest fall outside your scope in Settings.
           </span>
         )}
@@ -741,14 +732,57 @@ function Quiz({ words, script, onProgress, settings }) {
   });
   const toggleForm = (id) => setFormIds((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));
 
-  const box = { border: "1px solid " + C.rule, background: C.panel, padding: 14 };
-  const micro = { fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", textTransform: "uppercase", color: C.muted };
+  /* Derived above the stage returns rather than beside the JSX that uses them,
+     because the two hooks below need them and hooks cannot sit after a return. */
+  const isRecog = !!current && current.kind === "recognise";
+  const toEn = !!current && current.kind === "mean-en";
+  const options = !current ? []
+    : isRecog && target
+      ? shuffleStable([target, ...(current.opts || []).map((id) => cForms.find((f) => f.id === id)).filter(Boolean)], current.wordId + current.formId)
+      : isMean && cWord
+        ? shuffleStable([cWord, ...(current.opts || []).map((id) => words.find((w) => w.id === id)).filter(Boolean)], current.wordId + current.kind)
+        : [];
+
+  /* A drill is a keyboard instrument. Digits pick an option; Enter is left to
+     whatever control has focus, which is the input on produce questions and —
+     via the effect below — the Next button once a choice has been judged. */
+  const nextRef = useRef(null);
+  useEffect(() => {
+    if (stage !== "run") return;
+    const onKey = (e) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const tag = (e.target && e.target.tagName) || "";
+      /* A focused control owns its own keys: the romaji input handles Enter via
+         submit(), and a focused button activates natively. This listener is only
+         for keys nothing else has claimed. */
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.key === "Enter") {
+        /* Focus normally sits on Next by the effect below, so the button
+           handles this. The fallback matters when focus has fallen to body. */
+        if (judged && tag !== "BUTTON") { e.preventDefault(); advance(); }
+        return;
+      }
+      if (judged || !options.length) return;
+      const n = Number(e.key);
+      if (!Number.isInteger(n) || n < 1 || n > options.length) return;
+      e.preventDefault();
+      choose(options[n - 1].id);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [stage, judged, options]); // eslint-disable-line
+
+  useEffect(() => {
+    if (judged && nextRef.current) nextRef.current.focus();
+  }, [judged]);
+
+  const box = { border: "1px solid " + C.rule, background: C.panel, padding: S[4] };
 
   if (!words.length) {
     return (
-      <div style={{ ...box, padding: 40, textAlign: "center" }}>
-        <div style={{ fontFamily: MINCHO, fontSize: 34, color: C.rule }}>空</div>
-        <div style={{ fontSize: 13, color: C.muted, marginTop: 8 }}>Add a word to the deck first — the quiz builds its questions from it.</div>
+      <div style={{ ...box, padding: S[6] + S[2], textAlign: "center" }}>
+        <div style={{ fontFamily: MINCHO, fontSize: JP.display, color: C.rule }}>空</div>
+        <div style={{ fontSize: T.base, color: C.muted, marginTop: S[2] }}>Add a word to the deck first — the quiz builds its questions from it.</div>
       </div>
     );
   }
@@ -756,13 +790,13 @@ function Quiz({ words, script, onProgress, settings }) {
   /* ---------------- setup ---------------- */
   if (stage === "setup") {
     return (
-      <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: S[4] + 2, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ ...box, flex: "1 1 260px", minWidth: 240 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <span style={micro}>Words</span>
-            <span style={{ flex: 1, height: 1, background: C.ruleSoft }} />
-            <button className="kd-btn" onClick={() => setPicked(new Set(words.map((w) => w.id)))} style={{ ...micro, letterSpacing: ".1em", color: C.aux }}>All</button>
-            <button className="kd-btn" onClick={() => setPicked(new Set())} style={{ ...micro, letterSpacing: ".1em", color: C.aux }}>None</button>
+          <div className="kd-head">
+            <span className="kd-micro">Words</span>
+            <span className="kd-rail" />
+            <button className="kd-btn kd-act" onClick={() => setPicked(new Set(words.map((w) => w.id)))}>All</button>
+            <button className="kd-btn kd-act" onClick={() => setPicked(new Set())}>None</button>
           </div>
           <div style={{ maxHeight: 300, overflowY: "auto", border: "1px solid " + C.ruleSoft }}>
             {words.map((w) => {
@@ -770,19 +804,19 @@ function Quiz({ words, script, onProgress, settings }) {
               return (
                 <button key={w.id} className="kd-btn kd-row" onClick={() => toggleWord(w.id)}
                   style={{
-                    display: "flex", alignItems: "center", gap: 9, width: "100%", textAlign: "left",
+                    display: "flex", alignItems: "center", gap: S[2], width: "100%", textAlign: "left",
                     padding: "8px 9px", borderBottom: "1px solid " + C.ruleSoft,
                     background: on ? C.panelAlt : "transparent",
                   }}>
                   <span style={{
                     width: 15, height: 15, flexShrink: 0, border: "1px solid " + (on ? C.aux : C.rule),
                     background: on ? C.aux : "transparent", color: C.panel,
-                    fontSize: 10, lineHeight: "14px", textAlign: "center",
+                    fontSize: T.micro, lineHeight: "14px", textAlign: "center",
                   }}>{on ? "✓" : ""}</span>
-                  <span style={{ fontFamily: MINCHO, fontSize: 17 }}>
-                    <Word text={w.word} kana={w.reading} mode={qMode} ruby={8} />
+                  <span style={{ fontFamily: MINCHO, fontSize: JP.sm }}>
+                    <Word text={w.word} kana={w.reading} mode={qMode} ruby={RUBY.sm} />
                   </span>
-                  <span style={{ fontFamily: MONO, fontSize: 9, color: C.muted, marginLeft: "auto" }}>{typeLabel(w.type)}</span>
+                  <span style={{ fontFamily: MONO, fontSize: T.micro, color: C.muted, marginLeft: "auto" }}>{typeLabel(w.type)}</span>
                 </button>
               );
             })}
@@ -790,20 +824,20 @@ function Quiz({ words, script, onProgress, settings }) {
         </div>
 
         <div style={{ ...box, flex: "2 1 340px", minWidth: 260 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <span style={micro}>Forms to drill</span>
-            <span style={{ flex: 1, height: 1, background: C.ruleSoft }} />
+          <div className="kd-head">
+            <span className="kd-micro">Forms to drill</span>
+            <span className="kd-rail" />
           </div>
           {pool.length === 0 ? (
-            <div style={{ fontSize: 12, color: C.muted }}>Pick at least one word to see which forms are available.</div>
+            <div style={{ fontSize: T.sm, color: C.muted }}>Pick at least one word to see which forms are available.</div>
           ) : (
             GROUPS.map((grp) => {
               const gs = available.filter((f) => f.group === grp);
               if (!gs.length) return null;
               return (
-                <div key={grp} style={{ marginBottom: 11 }}>
-                  <div style={{ ...micro, fontSize: 8.5, marginBottom: 5 }}>{grp}</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+                <div key={grp} style={{ marginBottom: S[3] }}>
+                  <div className="kd-micro" style={{ marginBottom: S[1] }}>{grp}</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: S[1] }}>
                     {gs.map((f) => {
                       const on = formIds.includes(f.id);
                       return (
@@ -812,10 +846,10 @@ function Quiz({ words, script, onProgress, settings }) {
                             border: "1px solid " + (on ? C.aux : C.rule),
                             background: on ? C.aux : "transparent",
                             color: on ? C.panel : C.ink,
-                            padding: "6px 9px", fontSize: 11.5, textAlign: "left",
+                            padding: "6px 9px", fontSize: T.fine, textAlign: "left",
                           }}>
                           {f.label}
-                          <span style={{ fontFamily: MONO, fontSize: 8.5, marginLeft: 5, opacity: .7 }}>{f.n}</span>
+                          <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{f.n}</span>
                         </button>
                       );
                     })}
@@ -825,61 +859,61 @@ function Quiz({ words, script, onProgress, settings }) {
             })
           )}
 
-          <div style={{ borderTop: "1px solid " + C.ruleSoft, paddingTop: 12, marginTop: 4 }}>
-            <div style={{ ...micro, fontSize: 8.5, marginBottom: 6 }}>Vocabulary</div>
-            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ borderTop: "1px solid " + C.ruleSoft, paddingTop: S[3], marginTop: S[1] }}>
+            <div className="kd-micro" style={{ marginBottom: S[2] }}>Vocabulary</div>
+            <div style={{ display: "flex", gap: S[1], flexWrap: "wrap", alignItems: "center", marginBottom: S[3] }}>
               <button className="kd-btn kd-form-chip" onClick={() => setMeaningOn(!meaningOn)}
                 style={{
                   border: "1px solid " + (meaningOn ? C.aux : C.rule),
                   background: meaningOn ? C.aux : "transparent",
-                  color: meaningOn ? C.panel : C.ink, padding: "6px 9px", fontSize: 11.5,
+                  color: meaningOn ? C.panel : C.ink, padding: "6px 9px", fontSize: T.fine,
                 }}>
                 Meaning
-                <span style={{ fontFamily: MINCHO, fontSize: 10, marginLeft: 5, opacity: .8 }}>意味</span>
-                <span style={{ fontFamily: MONO, fontSize: 8.5, marginLeft: 5, opacity: .7 }}>{meaningCount}</span>
+                <span style={{ fontFamily: MINCHO, fontSize: T.micro, marginLeft: S[1], opacity: .8 }}>意味</span>
+                <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{meaningCount}</span>
               </button>
-              <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.5, flex: "1 1 140px" }}>
+              <span style={{ fontSize: T.fine, color: C.muted, lineHeight: 1.5, flex: "1 1 140px" }}>
                 Both ways — word to gloss and gloss to word. The only drill a noun has.
               </span>
             </div>
 
-            <div style={{ ...micro, fontSize: 8.5, marginBottom: 6 }}>Direction</div>
-            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 12 }}>
+            <div className="kd-micro" style={{ marginBottom: S[2] }}>Direction</div>
+            <div style={{ display: "flex", gap: S[1], flexWrap: "wrap", marginBottom: S[3] }}>
               {[["produce", "Produce the form"], ["recognise", "Name the form"], ["mixed", "Mixed"]].map(([id, label]) => (
                 <button key={id} className="kd-btn kd-form-chip" onClick={() => setDir(id)}
                   style={{
                     border: "1px solid " + (dir === id ? C.aux : C.rule),
                     background: dir === id ? C.aux : "transparent",
-                    color: dir === id ? C.panel : C.ink, padding: "6px 9px", fontSize: 11.5,
+                    color: dir === id ? C.panel : C.ink, padding: "6px 9px", fontSize: T.fine,
                   }}>{label}</button>
               ))}
             </div>
-            <div style={{ ...micro, fontSize: 8.5, marginBottom: 6 }}>Length</div>
-            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 12 }}>
+            <div className="kd-micro" style={{ marginBottom: S[2] }}>Length</div>
+            <div style={{ display: "flex", gap: S[1], flexWrap: "wrap", marginBottom: S[3] }}>
               {[10, 20, 0].map((n) => (
                 <button key={n} className="kd-btn kd-form-chip" onClick={() => setLen(n)}
                   style={{
                     border: "1px solid " + (len === n ? C.ink : C.rule),
                     background: len === n ? C.ink : "transparent",
-                    color: len === n ? C.panel : C.ink, padding: "6px 11px", fontSize: 11.5,
+                    color: len === n ? C.panel : C.ink, padding: "6px 11px", fontSize: T.fine,
                   }}>{n === 0 ? "All" : n}</button>
               ))}
             </div>
             <button className="kd-btn" onClick={() => start()} disabled={total === 0}
               style={{
                 width: "100%", background: total === 0 ? C.rule : C.stem, color: C.panel,
-                padding: "11px 0", fontSize: 13, letterSpacing: ".04em",
+                padding: "11px 0", fontSize: T.base, letterSpacing: ".04em",
                 cursor: total === 0 ? "default" : "pointer",
               }}>
               {total === 0 ? "Pick words and forms to begin" : "Start · " + (len === 0 || len > total ? total : len) + " question" + ((len === 0 || len > total ? total : len) === 1 ? "" : "s")}
             </button>
             {available.length === 0 && meaningCount === 0 && (
-              <div style={{ fontSize: 11.5, color: C.muted, marginTop: 8 }}>
+              <div style={{ fontSize: T.fine, color: C.muted, marginTop: S[2] }}>
                 No forms available. Enable some in Settings, or turn Meaning on above.
               </div>
             )}
             {total > 0 && (
-              <div style={{ fontSize: 11, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>
+              <div style={{ fontSize: T.fine, color: C.muted, marginTop: S[2], lineHeight: 1.5 }}>
                 {total} available from {pool.length} word{pool.length === 1 ? "" : "s"}. Answer in kanji, kana, or romaji.
               </div>
             )}
@@ -894,71 +928,71 @@ function Quiz({ words, script, onProgress, settings }) {
     const wrongN = queue.length - right;
     const pct = queue.length ? Math.round((right / queue.length) * 100) : 0;
     return (
-      <div style={{ display: "flex", gap: 18, flexWrap: "wrap", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: S[4] + 2, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ ...box, flex: "1 1 240px", minWidth: 230 }}>
-          <div style={{ ...micro, marginBottom: 14 }}>Result</div>
-          <div style={{ display: "flex", gap: 20, marginBottom: 16 }}>
+          <div className="kd-micro" style={{ marginBottom: S[4] }}>Result</div>
+          <div style={{ display: "flex", gap: S[5], marginBottom: S[4] }}>
             <div>
-              <div style={{ fontFamily: MINCHO, fontSize: 44, lineHeight: 1, color: C.aux }}>{right}</div>
-              <div style={{ ...micro, fontSize: 9, marginTop: 4 }}>Right</div>
+              <div style={{ fontFamily: MINCHO, fontSize: JP.figure, lineHeight: 1, color: C.aux }}>{right}</div>
+              <div className="kd-micro" style={{ marginTop: S[1] }}>Right</div>
             </div>
             <div>
-              <div style={{ fontFamily: MINCHO, fontSize: 44, lineHeight: 1, color: wrongN ? C.stem : C.rule }}>{wrongN}</div>
-              <div style={{ ...micro, fontSize: 9, marginTop: 4 }}>Wrong</div>
+              <div style={{ fontFamily: MINCHO, fontSize: JP.figure, lineHeight: 1, color: wrongN ? C.stem : C.rule }}>{wrongN}</div>
+              <div className="kd-micro" style={{ marginTop: S[1] }}>Wrong</div>
             </div>
           </div>
-          <div style={{ height: 6, background: C.panelAlt, border: "1px solid " + C.ruleSoft, display: "flex", marginBottom: 6 }}>
+          <div style={{ height: 6, background: C.panelAlt, border: "1px solid " + C.ruleSoft, display: "flex", marginBottom: S[2] }}>
             <div style={{ width: pct + "%", background: C.aux }} />
           </div>
-          <div style={{ fontSize: 11.5, color: C.muted }}>{pct}% of {queue.length}</div>
+          <div style={{ fontSize: T.fine, color: C.muted }}>{pct}% of {queue.length}</div>
 
-          <div style={{ display: "grid", gap: 6, marginTop: 18 }}>
+          <div style={{ display: "grid", gap: S[2], marginTop: S[4] }}>
             {misses.length > 0 && (
               <button className="kd-btn" onClick={() => start(misses, 0)}
-                style={{ background: C.stem, color: C.panel, padding: "10px 0", fontSize: 12.5 }}>
+                style={{ background: C.stem, color: C.panel, padding: "10px 0", fontSize: T.base }}>
                 Drill the {misses.length} missed
               </button>
             )}
             <button className="kd-btn" onClick={() => start()}
-              style={{ border: "1px solid " + C.ink, padding: "10px 0", fontSize: 12.5, background: C.panel }}>
+              style={{ border: "1px solid " + C.ink, padding: "10px 0", fontSize: T.base, background: C.panel }}>
               Same quiz again
             </button>
             <button className="kd-btn" onClick={() => setStage("setup")}
-              style={{ border: "1px solid " + C.rule, color: C.muted, padding: "10px 0", fontSize: 12.5, background: C.panel }}>
+              style={{ border: "1px solid " + C.rule, color: C.muted, padding: "10px 0", fontSize: T.base, background: C.panel }}>
               Change what's drilled
             </button>
           </div>
         </div>
 
         <div style={{ ...box, flex: "2 1 320px", minWidth: 260 }}>
-          <div style={{ ...micro, marginBottom: 12 }}>{misses.length ? "Missed" : "Nothing missed"}</div>
+          <div className="kd-micro" style={{ marginBottom: S[3] }}>{misses.length ? "Missed" : "Nothing missed"}</div>
           {misses.length === 0 ? (
-            <div style={{ fontFamily: MINCHO, fontSize: 15, color: C.muted }}>全問正解 — clean sweep.</div>
+            <div style={{ fontFamily: MINCHO, fontSize: JP.sm, color: C.muted }}>全問正解 — clean sweep.</div>
           ) : (
-            <div style={{ display: "grid", gap: 10 }}>
+            <div style={{ display: "grid", gap: S[3] }}>
               {misses.map((m, i) => {
                 const w = words.find((x) => x.id === m.wordId);
                 if (!w) return null;
                 if (m.kind.startsWith("mean")) {
                   return (
-                    <div key={i} style={{ borderLeft: "3px solid " + C.stem, paddingLeft: 9 }}>
-                      <div style={{ ...micro, fontSize: 8.5, marginBottom: 2 }}>{w.word} · Meaning</div>
-                      <div style={{ fontFamily: MINCHO, fontSize: 20 }}>
-                        <Word text={w.word} kana={w.reading} mode={qMode} ruby={9} />
+                    <div key={i} style={{ borderLeft: "3px solid " + C.stem, paddingLeft: S[2] }}>
+                      <div className="kd-micro" style={{ marginBottom: 2 }}>{w.word} · Meaning</div>
+                      <div style={{ fontFamily: MINCHO, fontSize: JP.md }}>
+                        <Word text={w.word} kana={w.reading} mode={qMode} ruby={RUBY.sm} />
                       </div>
-                      <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3 }}>{w.meaning}</div>
+                      <div style={{ fontSize: T.base, color: C.muted, marginTop: S[1] }}>{w.meaning}</div>
                     </div>
                   );
                 }
                 const f = conjugate(w).find((x) => x.id === m.formId);
                 if (!f) return null;
                 return (
-                  <div key={i} style={{ borderLeft: "3px solid " + C.stem, paddingLeft: 9 }}>
-                    <div style={{ ...micro, fontSize: 8.5, marginBottom: 2 }}>{w.word} · {f.label}</div>
-                    <div style={{ fontFamily: MINCHO, fontSize: 20 }}>
-                      <Word text={formText(f)} kana={formKana(f)} mode={qMode} ruby={9} />
+                  <div key={i} style={{ borderLeft: "3px solid " + C.stem, paddingLeft: S[2] }}>
+                    <div className="kd-micro" style={{ marginBottom: 2 }}>{w.word} · {f.label}</div>
+                    <div style={{ fontFamily: MINCHO, fontSize: JP.md }}>
+                      <Word text={formText(f)} kana={formKana(f)} mode={qMode} ruby={RUBY.sm} />
                     </div>
-                    <div style={{ fontFamily: MONO, fontSize: 10, color: C.muted, marginTop: 2 }}>{romaji(formKana(f))}</div>
+                    <div style={{ fontFamily: MONO, fontSize: T.micro, color: C.muted, marginTop: 2 }}>{romaji(formKana(f))}</div>
                   </div>
                 );
               })}
@@ -973,154 +1007,157 @@ function Quiz({ words, script, onProgress, settings }) {
   if (!current || !cWord || (!isMean && !target)) {
     return (
       <div style={box}>
-        <div style={{ fontSize: 13, color: C.muted }}>That question no longer resolves — the word may have been deleted.</div>
-        <button className="kd-btn" onClick={() => setStage("setup")} style={{ marginTop: 10, border: "1px solid " + C.ink, padding: "8px 14px", fontSize: 12.5 }}>Back to setup</button>
+        <div style={{ fontSize: T.base, color: C.muted }}>That question no longer resolves — the word may have been deleted.</div>
+        <button className="kd-btn" onClick={() => setStage("setup")} style={{ marginTop: S[3], border: "1px solid " + C.ink, padding: "8px 14px", fontSize: T.base }}>Back to setup</button>
       </div>
     );
   }
-  const isRecog = current.kind === "recognise";
-  const toEn = current.kind === "mean-en";
-  const options = isRecog
-    ? shuffleStable([target, ...(current.opts || []).map((id) => cForms.find((f) => f.id === id)).filter(Boolean)], current.wordId + current.formId)
-    : isMean
-      ? shuffleStable([cWord, ...(current.opts || []).map((id) => words.find((w) => w.id === id)).filter(Boolean)], current.wordId + current.kind)
-      : [];
   const wrongSoFar = idx + (judged ? 1 : 0) - right;
   const pctDone = Math.round((idx / queue.length) * 100);
 
   return (
     <div>
       {/* progress + live tally */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
-        <span style={{ ...micro }}>{idx + 1} / {queue.length}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: S[3], marginBottom: S[3], flexWrap: "wrap" }}>
+        <span className="kd-micro">{idx + 1} / {queue.length}</span>
         <div style={{ flex: 1, minWidth: 80, height: 4, background: C.ruleSoft, display: "flex" }}>
           <div style={{ width: pctDone + "%", background: C.ink, transition: "width .25s" }} />
         </div>
-        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".1em", color: C.aux }}>◯ {right}</span>
-        <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".1em", color: C.stem }}>✕ {wrongSoFar}</span>
+        <span style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".1em", color: C.aux }}>◯ {right}</span>
+        <span style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".1em", color: C.stem }}>✕ {wrongSoFar}</span>
       </div>
 
       <div style={{ ...box, borderTop: "3px solid " + C.ink, padding: "20px 16px" }}>
-        {/* the ask */}
-        <div style={{ ...micro, marginBottom: 12 }}>
-          {isMean
-            ? (toEn ? "What does this mean?" : "Which word means this?")
-            : isRecog
-              ? "Which form is this?"
-              : source
-                ? "From this form, write the dictionary form"
-                : "Write the " + target.label.toLowerCase()}
-          {!isRecog && !isMean && <span style={{ fontFamily: MINCHO, letterSpacing: 0, textTransform: "none", marginLeft: 6 }}>{target.jp}</span>}
-          {isMean && <span style={{ fontFamily: MINCHO, letterSpacing: 0, textTransform: "none", marginLeft: 6 }}>意味</span>}
+        {/* The ask. This is the instruction that changes card to card, and
+            reading it wrong means answering a different form entirely — so it
+            is sized as a question rather than as an eyebrow. The target form
+            sits in the same filled chip the deck uses for a selected form, so
+            "the form in question" looks the same in both views. */}
+        <div className="kd-ask">
+          <span>
+            {isMean
+              ? (toEn ? "What does this mean?" : "Which word means this?")
+              : isRecog
+                ? "Which form is this?"
+                : source
+                  ? "From this form, write the"
+                  : "Write the"}
+          </span>
+          {!isRecog && !isMean && (
+            <span className="kd-ask-target">
+              {target.label}
+              <span style={{ fontFamily: MINCHO, letterSpacing: 0, textTransform: "none", marginLeft: S[1] + 1 }}>{target.jp}</span>
+            </span>
+          )}
+          {isMean && <span style={{ fontFamily: MINCHO, color: C.muted }}>意味</span>}
         </div>
 
         {isMean && !toEn ? (
           /* The gloss is the prompt — English, so it stays in the sans face. */
-          <div style={{ fontSize: "clamp(19px, 5.4vw, 26px)", lineHeight: 1.35, marginBottom: 16 }}>{cWord.meaning}</div>
+          <div style={{ fontSize: T.prompt, lineHeight: 1.35, marginBottom: S[4] }}>{cWord.meaning}</div>
         ) : (
           <>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 4, marginBottom: 4 }}>
-              <div style={{ fontFamily: MINCHO, fontSize: "clamp(28px, 9vw, 44px)" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: S[1], marginBottom: S[1] }}>
+              <div style={{ fontFamily: MINCHO, fontSize: JP.xl }}>
                 {isMean || (!isRecog && !source)
-                  ? <Word text={cWord.word} kana={cWord.reading} mode={qMode} ruby="clamp(10px, 3vw, 15px)" />
+                  ? <Word text={cWord.word} kana={cWord.reading} mode={qMode} ruby={RUBY.xl} />
                   : isRecog
-                    ? <Word text={formText(target)} kana={formKana(target)} mode={qMode} ruby="clamp(10px, 3vw, 15px)" />
-                    : <Word text={formText(source)} kana={formKana(source)} mode={qMode} ruby="clamp(10px, 3vw, 15px)" />}
+                    ? <Word text={formText(target)} kana={formKana(target)} mode={qMode} ruby={RUBY.xl} />
+                    : <Word text={formText(source)} kana={formKana(source)} mode={qMode} ruby={RUBY.xl} />}
               </div>
               {(isRecog || isMean || judged) && (
                 <Say text={isMean ? cWord.reading : formKana(target)} size={15} enabled={settings.show.audio} />
               )}
             </div>
-            <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 16 }}>
+            <div style={{ fontSize: T.base, color: C.muted, marginBottom: S[4] }}>
               {/* Never leak the answer: a meaning question must not print the gloss. */}
               {!isMean && cWord.meaning}
-              <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".1em", marginLeft: isMean ? 0 : 8 }}>{typeLabel(cWord.type)}</span>
-              {source && <span style={{ fontFamily: MONO, fontSize: 9.5, letterSpacing: ".1em", marginLeft: 8 }}>{source.label.toUpperCase()}</span>}
+              <span style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".1em", marginLeft: isMean ? 0 : S[2] }}>{typeLabel(cWord.type)}</span>
+              {source && <span style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".1em", marginLeft: S[2] }}>{source.label.toUpperCase()}</span>}
             </div>
           </>
         )}
 
         {/* answer */}
         {isMean ? (
-          <div style={{ display: "grid", gap: 5 }}>
-            {options.map((w) => {
+          <div style={{ display: "grid", gap: S[1] }}>
+            {options.map((w, i) => {
               const chosen = judged && judged.chose === w.id;
               const isRight = judged && w.id === cWord.id;
               return (
-                <button key={w.id} className="kd-btn kd-form-chip" onClick={() => choose(w.id)}
+                <button key={w.id} className="kd-btn kd-form-chip kd-opt" onClick={() => choose(w.id)}
                   disabled={!!judged}
                   style={{
-                    textAlign: "left", padding: "10px 12px", fontSize: 13,
                     border: "1px solid " + (isRight ? C.aux : chosen ? C.stem : C.rule),
                     background: isRight ? C.aux : chosen ? C.stem : C.panel,
                     color: isRight || chosen ? C.panel : C.ink,
                     cursor: judged ? "default" : "pointer",
                   }}>
+                  <span className="kd-opt-key" aria-hidden="true">{i + 1}</span>
                   {toEn ? w.meaning : (
-                    <span style={{ fontFamily: MINCHO, fontSize: 19 }}>
-                      <Word text={w.word} kana={w.reading} mode={qMode} ruby={9}
-                        rubyColor={isRight || chosen ? "#c9cfd6" : C.muted} />
+                    <span style={{ fontFamily: MINCHO, fontSize: JP.md }}>
+                      <Word text={w.word} kana={w.reading} mode={qMode} ruby={RUBY.sm}
+                        rubyColor={isRight || chosen ? C.onInkDim : C.muted} />
                     </span>
                   )}
                 </button>
               );
             })}
             {judged && (
-              <button className="kd-btn" onClick={advance}
-                style={{ background: C.ink, color: C.panel, padding: "10px 0", fontSize: 13, marginTop: 3 }}>
+              <button ref={nextRef} className="kd-btn" onClick={advance}
+                style={{ background: C.ink, color: C.panel, padding: "10px 0", fontSize: T.base, marginTop: S[1] }}>
                 {idx + 1 >= queue.length ? "See result" : "Next"}
               </button>
             )}
           </div>
         ) : isRecog ? (
-          <div style={{ display: "grid", gap: 5 }}>
-            {options.map((f) => {
+          <div style={{ display: "grid", gap: S[1] }}>
+            {options.map((f, i) => {
               const chosen = judged && judged.chose === f.id;
               const isRight = judged && f.id === target.id;
               return (
-                <button key={f.id} className="kd-btn kd-form-chip" onClick={() => choose(f.id)}
+                <button key={f.id} className="kd-btn kd-form-chip kd-opt" onClick={() => choose(f.id)}
                   disabled={!!judged}
                   style={{
-                    textAlign: "left", padding: "10px 12px", fontSize: 13,
                     border: "1px solid " + (isRight ? C.aux : chosen ? C.stem : C.rule),
                     background: isRight ? C.aux : chosen ? C.stem : C.panel,
                     color: isRight || chosen ? C.panel : C.ink,
                     cursor: judged ? "default" : "pointer",
                   }}>
+                  <span className="kd-opt-key" aria-hidden="true">{i + 1}</span>
                   {f.label}
-                  <span style={{ fontFamily: MINCHO, fontSize: 11, marginLeft: 6, opacity: .75 }}>{f.jp}</span>
+                  <span style={{ fontFamily: MINCHO, fontSize: T.fine, marginLeft: S[2], opacity: .75 }}>{f.jp}</span>
                 </button>
               );
             })}
             {judged && (
-              <button className="kd-btn" onClick={advance}
-                style={{ background: C.ink, color: C.panel, padding: "10px 0", fontSize: 13, marginTop: 3 }}>
+              <button ref={nextRef} className="kd-btn" onClick={advance}
+                style={{ background: C.ink, color: C.panel, padding: "10px 0", fontSize: T.base, marginTop: S[1] }}>
                 {idx + 1 >= queue.length ? "See result" : "Next"}
               </button>
             )}
           </div>
         ) : (
           <>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <input key={idx} className="kd-in" style={{ flex: "1 1 160px", fontFamily: MINCHO, fontSize: 18 }}
+            <div style={{ display: "flex", gap: S[2], flexWrap: "wrap" }}>
+              <input key={idx} className="kd-in" style={{ flex: "1 1 160px", fontFamily: MINCHO, fontSize: T.lg }}
                 placeholder={ime ? "Type romaji — it becomes kana" : "Your answer"} value={input} autoFocus
                 autoCapitalize="off" autoCorrect="off" spellCheck={false} enterKeyHint="go"
                 inputMode="latin" readOnly={!!judged}
                 onChange={(e) => setInput(ime ? toKana(e.target.value) : e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && submit()} />
               <button className="kd-btn" onClick={submit}
-                style={{ background: C.ink, color: C.panel, padding: "0 16px", fontSize: 13, minHeight: 42 }}>
+                style={{ background: C.ink, color: C.panel, padding: "0 16px", fontSize: T.base, minHeight: 42 }}>
                 {judged ? (idx + 1 >= queue.length ? "See result" : "Next") : "Check"}
               </button>
               {!judged && (
                 <button className="kd-btn" onClick={reveal}
-                  style={{ border: "1px solid " + C.rule, color: C.muted, padding: "0 12px", fontSize: 12, minHeight: 42, background: C.panel }}>
+                  style={{ border: "1px solid " + C.rule, color: C.muted, padding: "0 12px", fontSize: T.sm, minHeight: 42, background: C.panel }}>
                   Show me
                 </button>
               )}
             </div>
-            <button className="kd-btn" onClick={() => setIme(!ime)}
-              style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".14em", color: C.aux, marginTop: 8 }}>
+            <button className="kd-btn kd-act" onClick={() => setIme(!ime)} style={{ marginTop: S[2] }}>
               かな IME {ime ? "ON" : "OFF"}
             </button>
           </>
@@ -1128,60 +1165,58 @@ function Quiz({ words, script, onProgress, settings }) {
 
         {/* verdict + breakdown */}
         {judged && (
-          <div style={{ marginTop: 16, borderTop: "1px solid " + C.ruleSoft, paddingTop: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div style={{ marginTop: S[4], borderTop: "1px solid " + C.ruleSoft, paddingTop: S[4] }}>
+            <div style={{ display: "flex", alignItems: "center", gap: S[2], marginBottom: S[3] }}>
               <span style={{
-                fontFamily: MONO, fontSize: 9, letterSpacing: ".18em", padding: "3px 7px",
+                fontFamily: MONO, fontSize: T.micro, letterSpacing: ".18em", padding: "3px 7px",
                 background: judged.ok ? C.aux : C.stem, color: C.panel,
               }}>{judged.ok ? "CORRECT" : "NOT QUITE"}</span>
               {!isMean && !judged.ok && input.trim() && (
-                <span style={{ fontSize: 12, color: C.muted }}>you wrote <span style={{ fontFamily: MINCHO, fontSize: 15, color: C.ink }}>{input.trim()}</span></span>
+                <span style={{ fontSize: T.sm, color: C.muted }}>you wrote <span style={{ fontFamily: MINCHO, fontSize: JP.sm, color: C.ink }}>{input.trim()}</span></span>
               )}
             </div>
             {isMean ? (
               /* Both halves of the pair, whichever half was the prompt — the point
                  is that the two are now attached to each other. */
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
-                <span style={{ fontFamily: MINCHO, fontSize: "clamp(24px, 7vw, 34px)" }}>
-                  <Word text={cWord.word} kana={cWord.reading} mode={qMode} ruby="clamp(9px, 2.6vw, 13px)" />
+              <div style={{ display: "flex", alignItems: "flex-end", gap: S[3], flexWrap: "wrap" }}>
+                <span style={{ fontFamily: MINCHO, fontSize: JP.lg }}>
+                  <Word text={cWord.word} kana={cWord.reading} mode={qMode} ruby={RUBY.lg} />
                 </span>
-                <span style={{ fontSize: 14, paddingBottom: 4 }}>{cWord.meaning}</span>
+                <span style={{ fontSize: T.md, paddingBottom: S[1] }}>{cWord.meaning}</span>
                 <span style={{ paddingBottom: 2 }}>
                   <Say text={cWord.reading} label="Play the word" enabled={settings.show.audio} />
                 </span>
                 {settings.show.romaji && (
-                  <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted, paddingBottom: 5 }}>{romaji(cWord.reading)}</span>
+                  <span style={{ fontFamily: MONO, fontSize: T.fine, color: C.muted, paddingBottom: S[1] + 1 }}>{romaji(cWord.reading)}</span>
                 )}
               </div>
             ) : (
-            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div style={{ display: "flex", gap: S[1], flexWrap: "wrap", alignItems: "flex-end" }}>
               {target.segs.map((s, i) => (
                 <div key={i} style={{ textAlign: "center" }}>
                   <div style={{
-                    fontFamily: MINCHO, fontSize: "clamp(21px, 6.4vw, 32px)", color: ROLE_COLOR[s.role],
+                    fontFamily: MINCHO, fontSize: JP.strip, color: ROLE_COLOR[s.role],
                     borderBottom: "2px solid " + ROLE_COLOR[s.role], padding: "0 5px 2px",
                   }}>
-                    <Word text={s.text} kana={s.kana} mode={qMode} ruby="clamp(8px, 2.2vw, 11px)" rubyColor={ROLE_COLOR[s.role]} reserve />
+                    <Word text={s.text} kana={s.kana} mode={qMode} ruby={RUBY.strip} rubyColor={ROLE_COLOR[s.role]} reserve />
                   </div>
                   {settings.show.glosses && (
-                    <div style={{ fontFamily: MONO, fontSize: 8, letterSpacing: ".1em", color: ROLE_COLOR[s.role], marginTop: 4 }}>{s.gloss}</div>
+                    <div style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".1em", color: ROLE_COLOR[s.role], marginTop: S[1] }}>{s.gloss}</div>
                   )}
                 </div>
               ))}
             </div>
             )}
             {!isMean && (
-            <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: S[1], marginTop: S[2] }}>
               {settings.show.romaji && (
-                <span style={{ fontFamily: MONO, fontSize: 10.5, color: C.muted }}>{romaji(formKana(target))}</span>
+                <span style={{ fontFamily: MONO, fontSize: T.fine, color: C.muted }}>{romaji(formKana(target))}</span>
               )}
               <Say text={formKana(target)} label="Play the answer" enabled={settings.show.audio} />
             </div>
             )}
             {!isMean && target.note && (
-              <div style={{ marginTop: 11, borderLeft: "3px solid " + C.extra, background: C.panelAlt, padding: "8px 10px", fontSize: 12, lineHeight: 1.6 }}>
-                {target.note}
-              </div>
+              <div className="kd-note" style={{ marginTop: S[3], borderLeftColor: C.extra }}>{target.note}</div>
             )}
           </div>
         )}
@@ -1213,6 +1248,9 @@ export default function App() {
   const speech = useSpeechStatus();
   const [quizRun, setQuizRun] = useState({ running: false, done: 0, total: 0 });
   const [pendingLeave, setPendingLeave] = useState(false);
+  /* main.jsx already applied this before first paint; state just mirrors it so
+     the Settings control has something to render against. */
+  const [theme, setTheme] = useState(readTheme);
   const [draft, setDraft] = useState({ word: "", reading: "", meaning: "", type: "godan", typeTouched: false, jlpt: "", trans: "", common: null });
 
   useEffect(() => {
@@ -1262,6 +1300,21 @@ export default function App() {
       try { await storage.set(GKEY, JSON.stringify(settings)); } catch { /* session-only */ }
     })();
   }, [settings, ready]);
+
+  useEffect(() => {
+    applyTheme(theme);
+    writeTheme(theme);
+  }, [theme]);
+
+  /* On "system" the OS can change under us — without this the page keeps the
+     theme it happened to load with. */
+  useEffect(() => {
+    if (theme !== "system" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = () => applyTheme("system");
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, [theme]);
 
   useEffect(() => {
     setAudioReporter(setAudioNote);
@@ -1429,14 +1482,70 @@ export default function App() {
   return (
     <div className="kd-app" style={{ background: C.ground, color: C.ink, fontFamily: SANS }}>
       <style>{`
+        ${THEME_CSS}
         * { box-sizing: border-box; }
         .kd-app { min-height: 100vh; min-height: 100dvh; }
         .kd-btn { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
         .kd-form-chip { transition: background .15s, color .15s, border-color .15s; }
         .kd-tile { transition: transform .16s ease, box-shadow .16s ease; }
         .kd-in { width: 100%; background: ${C.panel}; border: 1px solid ${C.rule}; padding: 9px 10px; font: inherit; color: ${C.ink}; outline: none; }
-        .kd-in:focus { border-color: ${C.aux}; box-shadow: 0 0 0 2px rgba(42,71,128,.15); }
+        .kd-in:focus { border-color: ${C.aux}; box-shadow: 0 0 0 2px var(--focus-ring); }
         button:focus-visible, .kd-in:focus-visible, [tabindex]:focus-visible { outline: 2px solid ${C.aux}; outline-offset: 2px; }
+
+        /* ---- the type scale, as classes, so there is no frictionless path back
+           to inventing a twenty-fourth font size ---- */
+        .kd-micro {
+          font-family: ${MONO}; font-size: ${T.micro}; letter-spacing: .2em;
+          text-transform: uppercase; color: ${C.muted};
+        }
+        .kd-act {
+          font-family: ${MONO}; font-size: ${T.micro}; letter-spacing: .1em;
+          text-transform: uppercase; color: ${C.aux};
+        }
+        .kd-gloss {
+          font-family: ${MONO}; font-size: ${T.micro}; letter-spacing: .1em;
+          padding: 2px 5px; white-space: nowrap;
+        }
+        /* section heading: eyebrow, optional JP, hairline to the right edge */
+        .kd-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+        .kd-rail { flex: 1; min-width: 20px; height: 1px; background: ${C.ruleSoft}; }
+        .kd-note {
+          border-left: 3px solid ${C.rule}; background: ${C.panelAlt};
+          padding: 8px 10px; font-size: ${T.sm}; line-height: 1.6;
+        }
+        .kd-del { color: ${C.rule}; transition: color .15s; }
+
+        /* ---- two tiers. The morpheme strip is the point of the app; before
+           this everything shared one treatment and it had to compete with four
+           lookalikes stacked under it. ---- */
+        .kd-panel {
+          background: ${C.panel};
+          border: 1px solid ${C.rule}; border-top: 3px solid ${C.ink};
+          padding: 22px 18px 18px;
+        }
+        .kd-panel-sub {
+          border: 1px solid ${C.ruleSoft}; background: transparent;
+          padding: 15px 15px 13px;
+        }
+
+        /* the quiz instruction — a question, not a label */
+        .kd-ask {
+          display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+          font-size: ${T.md}; color: ${C.ink}; margin-bottom: 16px;
+        }
+        .kd-ask-target {
+          font-family: ${MONO}; font-size: ${T.base}; letter-spacing: .08em;
+          text-transform: uppercase;
+          background: ${C.ink}; color: ${C.panel}; padding: 4px 9px;
+        }
+
+        /* number hint on a quiz option, for the 1-4 shortcut */
+        .kd-opt { display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; font-size: ${T.base}; }
+        .kd-opt-key {
+          font-family: ${MONO}; font-size: ${T.micro}; opacity: .5;
+          border: 1px solid currentColor; width: 16px; height: 16px;
+          display: grid; place-items: center; flex-shrink: 0;
+        }
 
         /* hover only where a pointer can actually hover — otherwise taps leave
            sticky hover states stranded on touch screens */
@@ -1444,11 +1553,12 @@ export default function App() {
           .kd-form-chip:hover { border-color: ${C.ink}; }
           .kd-tile:hover { transform: translateY(-2px); }
           .kd-row:hover { background: ${C.panelAlt}; }
+          .kd-del:hover { color: ${C.stem}; }
         }
 
         .kd-scrim {
           position: fixed; inset: 0; z-index: 50; padding: 20px;
-          background: rgba(22, 27, 25, .55);
+          background: var(--scrim);
           display: flex; align-items: center; justify-content: center;
           animation: kd-fade .16s ease-out;
         }
@@ -1456,7 +1566,7 @@ export default function App() {
           width: 100%; max-width: 400px;
           background: ${C.panel};
           border: 1px solid ${C.ink}; border-top: 4px solid ${C.stem};
-          box-shadow: 0 18px 44px rgba(22, 27, 25, .3);
+          box-shadow: var(--shadow-modal);
           padding: 20px 20px 17px;
           max-height: calc(100% - 8px); overflow-y: auto;
           animation: kd-pop .18s cubic-bezier(.2, .9, .3, 1);
@@ -1464,12 +1574,17 @@ export default function App() {
         @keyframes kd-fade { from { opacity: 0 } to { opacity: 1 } }
         @keyframes kd-pop { from { opacity: 0; transform: translateY(12px) scale(.97) } to { opacity: 1; transform: none } }
 
+        /* The whole point of the app is that a form recomposes from parts, so
+           the swap gets shown rather than cut. */
+        .kd-swap { animation: kd-swap .16s ease-out; }
+        @keyframes kd-swap { from { opacity: 0; transform: translateY(3px) } to { opacity: 1; transform: none } }
+
         .kd-toast {
           position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
           z-index: 60; width: calc(100% - 32px); max-width: 430px;
           background: ${C.panel}; border: 1px solid ${C.ink};
           border-left: 4px solid ${C.stem};
-          box-shadow: 0 10px 30px rgba(22, 27, 25, .25);
+          box-shadow: var(--shadow-toast);
           padding: 11px 12px;
           animation: kd-rise .2s ease-out;
         }
@@ -1498,6 +1613,10 @@ export default function App() {
             display: flex; max-height: none;
             overflow-x: auto; overflow-y: hidden;
             scroll-snap-type: x proximity; overscroll-behavior-x: contain;
+            /* a cut-off card reads as the end of the list; a faded one reads as
+               more to the right */
+            -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
           }
           .kd-list > * {
             flex: 0 0 min(62vw, 230px); scroll-snap-align: start;
@@ -1518,9 +1637,9 @@ export default function App() {
             under it — no third row, nothing left hanging mid-width. */}
         <div style={{ maxWidth: 1120, margin: "0 auto", padding: "12px 18px", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 14, flexWrap: "wrap" }}>
           {/* Title and tagline share a baseline; everything else centres on the row. */}
-          <div style={{ display: "flex", alignItems: "baseline", gap: 12, minWidth: 0, marginRight: "auto" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: S[3], minWidth: 0, marginRight: "auto" }}>
             <div style={{ fontFamily: MINCHO, fontSize: 26, letterSpacing: ".08em", lineHeight: 1 }}>言葉帳</div>
-            <div className="kd-tagline" style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".22em", textTransform: "uppercase", color: C.muted }}>
+            <div className="kd-tagline kd-micro" style={{ letterSpacing: ".22em" }}>
               Kotoba-chō · word deck &amp; morphology
             </div>
           </div>
@@ -1529,32 +1648,34 @@ export default function App() {
               const on = view === id;
               return (
                 <button key={id} className="kd-btn kd-form-chip" onClick={() => goto(id)}
+                  aria-current={on ? "page" : undefined}
                   style={{
-                    fontFamily: MONO, fontSize: 10, letterSpacing: ".16em",
+                    fontFamily: MONO, fontSize: T.micro, letterSpacing: ".16em",
                     background: on ? C.stem : "transparent", color: on ? C.panel : C.muted,
                   }}>{label.toUpperCase()}</button>
               );
             })}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", color: C.muted }}>SCRIPT</span>
+          <div style={{ display: "flex", alignItems: "center", gap: S[4] }}>
+            <div style={{ display: "flex", alignItems: "center", gap: S[2] }}>
+              <span className="kd-micro">SCRIPT</span>
               <div className="kd-seg">
                 {SCRIPTS.map((s) => {
                   const on = script === s.id;
                   return (
                     <button key={s.id} className="kd-btn kd-form-chip" onClick={() => setScript(s.id)}
+                      aria-pressed={on}
                       title={s.id === "furigana" ? "Kanji with the reading above it" : s.id === "kanji" ? "Kanji only, no reading" : "Kana only, no kanji"}
                       style={{
-                        fontFamily: MINCHO, fontSize: 13,
+                        fontFamily: MINCHO, fontSize: T.base,
                         background: on ? C.ink : "transparent", color: on ? C.panel : C.muted,
                       }}>{s.label}</button>
                   );
                 })}
               </div>
             </div>
-            <span className="kd-tagline" style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".16em", color: C.muted }}>
+            <span className="kd-tagline kd-micro" style={{ letterSpacing: ".16em" }}>
               {scopedWords.length} ENTR{scopedWords.length === 1 ? "Y" : "IES"}
             </span>
           </div>
@@ -1577,7 +1698,7 @@ export default function App() {
       )}
 
       {view === "quiz" && (
-        <div style={{ maxWidth: 1120, margin: "0 auto", padding: 18 }}>
+        <div style={{ maxWidth: 1120, margin: "0 auto", padding: S[4] }}>
           <Quiz words={scopedWords} script={script} onProgress={setQuizRun} settings={settings} />
         </div>
       )}
@@ -1600,17 +1721,19 @@ export default function App() {
           onChange={setSettings}
           wordCount={scopedWords.length}
           formCount={settings.formIds.length}
+          theme={theme}
+          onTheme={setTheme}
         />
       )}
 
       {view === "deck" && (
-      <div style={{ maxWidth: 1120, margin: "0 auto", padding: 18, display: "flex", gap: 22, alignItems: "flex-start", flexWrap: "wrap" }}>
+      <div style={{ maxWidth: 1120, margin: "0 auto", padding: S[4], display: "flex", gap: S[5], alignItems: "flex-start", flexWrap: "wrap" }}>
         {/* ---------------- deck ---------------- */}
         <aside className="kd-deck">
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <div style={{ display: "flex", gap: S[2], marginBottom: S[3] }}>
             <div style={{ position: "relative", flex: 1 }}>
               <Search size={13} style={{ position: "absolute", left: 9, top: 11, color: C.muted }} />
-              <input className="kd-in" style={{ paddingLeft: 27, fontSize: 13 }} placeholder="Search the deck" value={query}
+              <input className="kd-in" style={{ paddingLeft: 27, fontSize: T.base }} placeholder="Search the deck" value={query}
                 onChange={(e) => { setQuery(e.target.value); setPendingDelete(null); }} />
             </div>
             <button className="kd-btn" onClick={() => (adding ? closeAdd() : (warmDict(), setAdding(true)))} title="Add a word"
@@ -1620,17 +1743,17 @@ export default function App() {
           </div>
 
           {adding && (
-            <div style={{ background: C.panel, border: "1px solid " + C.rule, padding: 12, marginBottom: 12, display: "grid", gap: 8 }}>
+            <div style={{ background: C.panel, border: "1px solid " + C.rule, padding: S[3], marginBottom: S[3], display: "grid", gap: S[2] }}>
               <div>
-                <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".16em", color: C.muted, marginBottom: 5 }}>LOOK IT UP</div>
-                <div style={{ display: "flex", gap: 6 }}>
+                <div className="kd-micro" style={{ letterSpacing: ".16em", marginBottom: S[1] }}>LOOK IT UP</div>
+                <div style={{ display: "flex", gap: S[2] }}>
                   <input className="kd-in" placeholder="iku · 行く · たべる" value={q2} autoFocus
                     onChange={(e) => setQ2(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && runLookup()} />
                   <button className="kd-btn" onClick={runLookup} disabled={looking || !q2.trim()}
                     style={{
                       background: looking || !q2.trim() ? C.rule : C.aux, color: C.panel,
-                      padding: "0 12px", fontSize: 12, whiteSpace: "nowrap",
+                      padding: "0 12px", fontSize: T.sm, whiteSpace: "nowrap",
                       cursor: looking || !q2.trim() ? "default" : "pointer",
                     }}>
                     {looking ? "…" : "Look up"}
@@ -1638,12 +1761,10 @@ export default function App() {
                 </div>
               </div>
 
-              {lookErr && (
-                <div style={{ borderLeft: "3px solid " + C.stem, background: C.panelAlt, padding: "7px 9px", fontSize: 11.5, lineHeight: 1.5 }}>{lookErr}</div>
-              )}
+              {lookErr && <div className="kd-note" style={{ borderLeftColor: C.stem }}>{lookErr}</div>}
 
               {hits && hits.length === 0 && (
-                <div style={{ fontSize: 11.5, color: C.muted, lineHeight: 1.5 }}>
+                <div style={{ fontSize: T.fine, color: C.muted, lineHeight: 1.5 }}>
                   No match for “{q2 || draft.word}”. Fill the fields in below instead.
                 </div>
               )}
@@ -1656,24 +1777,24 @@ export default function App() {
                         display: "block", width: "100%", textAlign: "left", padding: "8px 9px",
                         borderBottom: i === hits.length - 1 ? "none" : "1px solid " + C.ruleSoft,
                       }}>
-                      <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
-                        <span style={{ fontFamily: MINCHO, fontSize: 20 }}>
-                          <Word text={c.word} kana={c.reading} mode="furigana" ruby={9} />
+                      <div style={{ display: "flex", alignItems: "flex-end", gap: S[2] }}>
+                        <span style={{ fontFamily: MINCHO, fontSize: JP.md }}>
+                          <Word text={c.word} kana={c.reading} mode="furigana" ruby={RUBY.sm} />
                         </span>
-                        <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".1em", color: C.aux, border: "1px solid " + C.aux, padding: "1px 4px" }}>
+                        <span style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".1em", color: C.aux, border: "1px solid " + C.aux, padding: "1px 4px" }}>
                           {TYPES.find((t) => t.id === c.type)?.label.toUpperCase()}
                         </span>
                       </div>
-                      <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3 }}>{c.meaning}</div>
+                      <div style={{ fontSize: T.fine, color: C.muted, marginTop: S[1] }}>{c.meaning}</div>
                     </button>
                   ))}
                 </div>
               )}
 
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
-                <span style={{ flex: 1, height: 1, background: C.ruleSoft }} />
-                <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: ".18em", color: C.muted }}>OR ENTER IT</span>
-                <span style={{ flex: 1, height: 1, background: C.ruleSoft }} />
+              <div style={{ display: "flex", alignItems: "center", gap: S[2], marginTop: 2 }}>
+                <span className="kd-rail" />
+                <span className="kd-micro" style={{ letterSpacing: ".18em" }}>OR ENTER IT</span>
+                <span className="kd-rail" />
               </div>
 
               <input className="kd-in" placeholder="Word — 行く" value={draft.word} onChange={(e) => updateDraft({ word: e.target.value })} />
@@ -1681,14 +1802,14 @@ export default function App() {
               <input className="kd-in" placeholder="Meaning — to go" value={draft.meaning} onChange={(e) => updateDraft({ meaning: e.target.value })}
                 onKeyDown={(e) => e.key === "Enter" && addWord()} />
               <div>
-                <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".16em", color: C.muted, marginBottom: 5 }}>
+                <div className="kd-micro" style={{ letterSpacing: ".16em", marginBottom: S[1] }}>
                   WORD CLASS {draft.typeTouched ? "" : "· detected"}
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: S[1] }}>
                   {TYPES.map((t) => (
                     <button key={t.id} className="kd-btn kd-form-chip" onClick={() => setDraft((d) => ({ ...d, type: t.id, typeTouched: true }))}
                       style={{
-                        fontSize: 11, padding: "4px 8px", border: "1px solid " + (draft.type === t.id ? C.ink : C.rule),
+                        fontSize: T.fine, padding: "4px 8px", border: "1px solid " + (draft.type === t.id ? C.ink : C.rule),
                         background: draft.type === t.id ? C.ink : "transparent", color: draft.type === t.id ? C.panel : C.muted,
                       }}>{t.label}</button>
                   ))}
@@ -1704,12 +1825,12 @@ export default function App() {
                 <option value="intrans">自動詞 intransitive</option>
                 <option value="na">n/a</option>
               </select>
-              <label style={{ fontSize: 11.5, color: C.muted, display: "flex", alignItems: "center", gap: 5 }}>
+              <label style={{ fontSize: T.fine, color: C.muted, display: "flex", alignItems: "center", gap: S[1] }}>
                 <input type="checkbox" checked={draft.common === true}
                   onChange={(e) => updateDraft({ common: e.target.checked ? true : null })} />
                 Common
               </label>
-              <button className="kd-btn" onClick={addWord} style={{ background: C.ink, color: C.panel, padding: "9px 0", fontSize: 13, letterSpacing: ".04em" }}>
+              <button className="kd-btn" onClick={addWord} style={{ background: C.ink, color: C.panel, padding: "9px 0", fontSize: T.base, letterSpacing: ".04em" }}>
                 Add to deck
               </button>
             </div>
@@ -1717,9 +1838,9 @@ export default function App() {
 
           <div className="kd-list" style={{ border: "1px solid " + C.rule, background: C.panel }}>
             {filtered.length === 0 && (
-              <div className="kd-empty" style={{ padding: 22, textAlign: "center" }}>
-                <div style={{ fontFamily: MINCHO, fontSize: 28, color: C.rule, marginBottom: 8 }}>空</div>
-                <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+              <div className="kd-empty" style={{ padding: S[5], textAlign: "center" }}>
+                <div style={{ fontFamily: MINCHO, fontSize: JP.display, color: C.rule, marginBottom: S[2] }}>空</div>
+                <div style={{ fontSize: T.sm, color: C.muted, lineHeight: 1.6 }}>
                   {words.length === 0
                     ? "The deck is empty. Add a word and the breakdown builds itself."
                     : scopedWords.length === 0
@@ -1736,20 +1857,20 @@ export default function App() {
                     padding: "9px 11px", borderBottom: "1px solid " + C.ruleSoft,
                     borderLeft: "3px solid " + C.stem, background: C.panelAlt,
                   }}>
-                    <div style={{ fontSize: 12.5, display: "flex", alignItems: "flex-end", gap: 5, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: T.base, display: "flex", alignItems: "flex-end", gap: S[1], flexWrap: "wrap" }}>
                       <span>Delete</span>
-                      <span style={{ fontFamily: MINCHO, fontSize: 17, color: C.stem }}>
-                        <Word text={w.word} kana={w.reading} mode={script} ruby={8} rubyColor={C.stem} />
+                      <span style={{ fontFamily: MINCHO, fontSize: JP.sm, color: C.stem }}>
+                        <Word text={w.word} kana={w.reading} mode={script} ruby={RUBY.sm} rubyColor={C.stem} />
                       </span>
                       <span>from the deck?</span>
                     </div>
-                    <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                    <div style={{ display: "flex", gap: S[2], marginTop: S[2] }}>
                       <button className="kd-btn" onClick={() => removeWord(w.id)}
-                        style={{ background: C.stem, color: C.panel, padding: "5px 12px", fontSize: 11.5 }}>
+                        style={{ background: C.stem, color: C.panel, padding: "5px 12px", fontSize: T.fine }}>
                         Delete
                       </button>
                       <button className="kd-btn" onClick={() => setPendingDelete(null)} autoFocus
-                        style={{ border: "1px solid " + C.rule, color: C.muted, padding: "5px 12px", fontSize: 11.5, background: C.panel }}>
+                        style={{ border: "1px solid " + C.rule, color: C.muted, padding: "5px 12px", fontSize: T.fine, background: C.panel }}>
                         Keep
                       </button>
                     </div>
@@ -1760,25 +1881,23 @@ export default function App() {
                 <div key={w.id} className="kd-row"
                   onClick={() => { setSelId(w.id); setPendingDelete(null); revealStage(); }}
                   style={{
-                    display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: S[3], padding: "9px 11px", cursor: "pointer",
                     borderBottom: "1px solid " + C.ruleSoft,
                     borderLeft: "3px solid " + (on ? C.stem : "transparent"),
                     background: on ? C.panelAlt : "transparent",
                   }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontFamily: MINCHO, fontSize: 19 }}>
-                      <Word text={w.word} kana={w.reading} mode={script} ruby={9} rubyColor={on ? C.stem : C.muted} />
+                    <div style={{ fontFamily: MINCHO, fontSize: JP.md }}>
+                      <Word text={w.word} kana={w.reading} mode={script} ruby={RUBY.sm} rubyColor={on ? C.stem : C.muted} />
                     </div>
-                    <div style={{ fontFamily: MONO, fontSize: 9.5, color: C.muted, letterSpacing: ".05em", marginTop: 1 }}>
+                    <div style={{ fontFamily: MONO, fontSize: T.micro, color: C.muted, letterSpacing: ".05em", marginTop: 1 }}>
                       {romaji(w.reading)} · {typeLabel(w.type)}
                     </div>
-                    {w.meaning && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.meaning}</div>}
+                    {w.meaning && <div style={{ fontSize: T.fine, color: C.muted, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{w.meaning}</div>}
                   </div>
-                  <button className="kd-btn" title={"Delete " + w.word}
+                  <button className="kd-btn kd-del" title={"Delete " + w.word}
                     onClick={(e) => { e.stopPropagation(); setPendingDelete(w.id); }}
-                    style={{ color: C.rule, padding: 9, margin: -3 }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = C.stem)}
-                    onMouseLeave={(e) => (e.currentTarget.style.color = C.rule)}>
+                    style={{ padding: S[2], margin: -3 }}>
                     <Trash2 size={13} />
                   </button>
                 </div>
@@ -1791,32 +1910,33 @@ export default function App() {
         {/* ---------------- analysis stage ---------------- */}
         <main className="kd-stage">
           {!selected ? (
-            <div style={{ border: "1px solid " + C.rule, background: C.panel, padding: 40, textAlign: "center" }}>
-              <div style={{ fontFamily: MINCHO, fontSize: 40, color: C.rule }}>—</div>
-              <div style={{ fontSize: 13, color: C.muted, marginTop: 8 }}>Pick a word from the deck to take it apart.</div>
+            <div style={{ border: "1px solid " + C.rule, background: C.panel, padding: S[6] + S[2], textAlign: "center" }}>
+              <div style={{ fontFamily: MINCHO, fontSize: JP.display, color: C.rule }}>—</div>
+              <div style={{ fontSize: T.base, color: C.muted, marginTop: S[2] }}>Pick a word from the deck to take it apart.</div>
             </div>
           ) : (
             <>
               {/* entry header */}
-              <div style={{ display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap", marginBottom: 4 }}>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: S[4], flexWrap: "wrap", marginBottom: S[1] }}>
                 <div>
                   {settings.show.romaji && (
-                    <div style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".2em", color: C.muted }}>{romaji(selected.reading).toUpperCase()}</div>
+                    <div className="kd-micro">{romaji(selected.reading).toUpperCase()}</div>
                   )}
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 4 }}>
-                    <div style={{ fontFamily: MINCHO, fontSize: "clamp(26px, 8vw, 34px)" }}>
-                      <Word text={selected.word} kana={selected.reading} mode={script} ruby={13} />
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: S[1] }}>
+                    <div style={{ fontFamily: MINCHO, fontSize: JP.lg }}>
+                      <Word text={selected.word} kana={selected.reading} mode={script} ruby={RUBY.lg} />
                     </div>
                     <Say text={selected.reading} size={15} label="Play the word" enabled={settings.show.audio} />
                   </div>
                 </div>
-                <div style={{ paddingBottom: 4 }}>
-                  <div style={{ fontSize: 13, color: C.ink }}>{selected.meaning || <span style={{ color: C.muted }}>no gloss</span>}</div>
-                  <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
+                <div style={{ paddingBottom: S[1] }}>
+                  <div style={{ fontSize: T.base, color: C.ink }}>{selected.meaning || <span style={{ color: C.muted }}>no gloss</span>}</div>
+                  <div style={{ display: "flex", gap: S[1], marginTop: S[1] + 1, flexWrap: "wrap" }}>
                     {classChoices.map((t) => (
                       <button key={t.id} className="kd-btn kd-form-chip" onClick={() => setType(selected.id, t.id)}
+                        aria-pressed={selected.type === t.id}
                         style={{
-                          fontFamily: MONO, fontSize: 9.5, letterSpacing: ".08em", padding: "6px 9px",
+                          fontFamily: MONO, fontSize: T.micro, letterSpacing: ".08em", padding: "6px 9px",
                           border: "1px solid " + (selected.type === t.id ? C.aux : C.ruleSoft),
                           background: selected.type === t.id ? C.aux : "transparent",
                           color: selected.type === t.id ? C.panel : C.muted,
@@ -1827,44 +1947,47 @@ export default function App() {
               </div>
 
               {/* the signature: morpheme strip with interlinear gloss */}
-              <div style={{ border: "1px solid " + C.rule, borderTop: "3px solid " + C.ink, background: C.panel, padding: "20px 18px 16px" }}>
+              <div className="kd-panel">
                 {form && (
                   <>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
-                      <div style={{ fontFamily: MONO, fontSize: 10, letterSpacing: ".2em", textTransform: "uppercase", color: C.muted }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: S[3], marginBottom: S[4], flexWrap: "wrap" }}>
+                      <div className="kd-micro">
                         {form.label} <span style={{ fontFamily: MINCHO, letterSpacing: 0, textTransform: "none" }}>{form.jp}</span>
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: S[1] }}>
                         {settings.show.romaji && (
-                          <span style={{ fontFamily: MONO, fontSize: 11, color: C.muted }}>{romaji(readingOut)}</span>
+                          <span style={{ fontFamily: MONO, fontSize: T.fine, color: C.muted }}>{romaji(readingOut)}</span>
                         )}
                         <Say text={readingOut} label="Play this form" enabled={settings.show.audio} />
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 6, flexWrap: "wrap" }}>
+                    {/* keyed on the form so switching forms replays the fade —
+                        the recomposition is the thing being taught */}
+                    <div key={form.id} className="kd-swap" style={{ display: "flex", alignItems: "flex-start", gap: S[2], flexWrap: "wrap" }}>
                       {form.segs.map((s, i) => {
                         const col = ROLE_COLOR[s.role];
                         const on = segIdx === i;
                         return (
                           <button key={i} className="kd-btn kd-tile" onClick={() => setSegIdx(on ? null : i)}
+                            aria-pressed={on}
                             style={{ textAlign: "center", padding: 0 }}>
                             <div style={{
-                              fontFamily: MINCHO, fontSize: "clamp(21px, 7.2vw, 38px)", padding: "2px 6px 4px",
+                              fontFamily: MINCHO, fontSize: JP.strip, padding: "2px 6px 4px",
                               color: col,
                               borderBottom: "3px solid " + (on ? col : "transparent"),
                               background: on ? (s.role === "root" ? C.panelAlt : "transparent") : "transparent",
                             }}>
-                              <Word text={s.text} kana={s.kana} mode={script} ruby="clamp(8px, 2.4vw, 12px)" rubyColor={col} reserve />
+                              <Word text={s.text} kana={s.kana} mode={script} ruby={RUBY.strip} rubyColor={col} reserve />
                             </div>
                             {settings.show.romaji && (
-                              <div style={{ fontFamily: MONO, fontSize: 9, color: C.muted, marginTop: 3 }}>{romaji(s.kana)}</div>
+                              <div style={{ fontFamily: MONO, fontSize: T.micro, color: C.muted, marginTop: S[1] }}>{romaji(s.kana)}</div>
                             )}
                             {settings.show.glosses && (
-                              <div style={{
-                                fontFamily: MONO, fontSize: 8.5, letterSpacing: ".1em", marginTop: 4,
+                              <div className="kd-gloss" style={{
+                                marginTop: S[1],
                                 color: on ? C.panel : col, background: on ? col : "transparent",
-                                border: "1px solid " + col, padding: "2px 5px", whiteSpace: "nowrap",
+                                border: "1px solid " + col,
                               }}>{s.gloss}</div>
                             )}
                           </button>
@@ -1872,22 +1995,34 @@ export default function App() {
                       })}
                     </div>
 
+                    {/* The key to the whole colour system. It used to live in the
+                        footer at 9px, below the fold, explaining a mechanic the
+                        reader had already met three screens earlier. */}
+                    <div style={{ display: "flex", gap: S[3], flexWrap: "wrap", marginTop: S[4], paddingTop: S[3], borderTop: "1px solid " + C.ruleSoft }}>
+                      {[["root", "Root"], ["stem", "Shifting kana"], ["aux", "Auxiliary"], ["extra", "Stacked suffix"]].map(([role, label]) => (
+                        <span key={role} className="kd-micro" style={{ display: "flex", alignItems: "center", gap: S[1], letterSpacing: ".1em", color: ROLE_COLOR[role] }}>
+                          <span aria-hidden="true" style={{ width: 8, height: 8, background: ROLE_COLOR[role], flexShrink: 0 }} />
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+
                     {/* morpheme note */}
-                    <div style={{ marginTop: 16, borderTop: "1px solid " + C.ruleSoft, paddingTop: 13 }}>
+                    <div style={{ marginTop: S[4], borderTop: "1px solid " + C.ruleSoft, paddingTop: S[3] }}>
                       {activeSeg ? (
-                        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-start" }}>
+                        <div style={{ display: "flex", gap: S[4], flexWrap: "wrap", alignItems: "flex-start" }}>
                           <div style={{ flex: "1 1 300px", minWidth: 240 }}>
-                            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, marginBottom: 5 }}>
-                              <span style={{ fontFamily: MINCHO, fontSize: 17, color: ROLE_COLOR[activeSeg.role] }}>
-                                <Word text={activeSeg.text} kana={activeSeg.kana} mode={script} ruby={9} rubyColor={ROLE_COLOR[activeSeg.role]} />
+                            <div style={{ display: "flex", alignItems: "flex-end", gap: S[2], marginBottom: S[1] }}>
+                              <span style={{ fontFamily: MINCHO, fontSize: JP.sm, color: ROLE_COLOR[activeSeg.role] }}>
+                                <Word text={activeSeg.text} kana={activeSeg.kana} mode={script} ruby={RUBY.sm} rubyColor={ROLE_COLOR[activeSeg.role]} />
                               </span>
-                              <span style={{ fontSize: 12.5, fontWeight: 600 }}>{activeSeg.title}</span>
+                              <span style={{ fontSize: T.base, fontWeight: 600 }}>{activeSeg.title}</span>
                             </div>
-                            <div style={{ fontSize: 12.5, lineHeight: 1.65, color: "#3b433e" }}>{activeSeg.body}</div>
+                            <div style={{ fontSize: T.base, lineHeight: 1.65, color: C.body }}>{activeSeg.body}</div>
                           </div>
                           {settings.show.ladder && godanRow && ladderActive && (
                             <div>
-                              <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: ".16em", color: C.muted, marginBottom: 5 }}>
+                              <div className="kd-micro" style={{ letterSpacing: ".16em", marginBottom: S[1] }}>
                                 五段 · FIVE ROWS OF {romaji(godanRow).toUpperCase()}
                               </div>
                               <Ladder row={godanRow} active={ladderActive} />
@@ -1895,22 +2030,22 @@ export default function App() {
                           )}
                         </div>
                       ) : (
-                        <div style={{ fontSize: 12, color: C.muted }}>
+                        <div style={{ fontSize: T.sm, color: C.muted }}>
                           Tap any piece above to see what it is doing.
                           {form.note ? " " : ""}
                         </div>
                       )}
                       {form.note && (
-                        <div style={{ marginTop: 12, borderLeft: "3px solid " + C.extra, background: C.panelAlt, padding: "9px 11px" }}>
-                          <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: ".16em", color: C.extra }}>IRREGULAR</span>
-                          <div style={{ fontSize: 12.5, lineHeight: 1.6, marginTop: 4 }}>{form.note}</div>
+                        <div className="kd-note" style={{ marginTop: S[3], borderLeftColor: C.extra }}>
+                          <span className="kd-micro" style={{ letterSpacing: ".16em", color: C.extra }}>IRREGULAR</span>
+                          <div style={{ fontSize: T.base, lineHeight: 1.6, marginTop: S[1] }}>{form.note}</div>
                         </div>
                       )}
                     </div>
                   </>
                 )}
                 {!form && forms.length === 0 && (
-                  <div style={{ fontSize: 13, color: C.muted }}>
+                  <div style={{ fontSize: T.base, color: C.muted }}>
                     No forms for this entry. Check the reading is written in kana, then pick the right word class above.
                   </div>
                 )}
@@ -1920,34 +2055,35 @@ export default function App() {
               {settings.show.examples && <ExamplesPanel word={selected} script={script} onSave={saveExamples} settings={settings} />}
 
               {/* form ladder */}
-              <div style={{ marginTop: 18, display: "grid", gap: 14 }}>
+              <div style={{ marginTop: S[5], display: "grid", gap: S[4] }}>
                 {GROUPS.map((grp) => {
                   const items = shown.filter((f) => f.group === grp);
                   if (!items.length) return null;
                   return (
                     <div key={grp}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 7 }}>
-                        <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: ".22em", textTransform: "uppercase", color: C.muted }}>{grp}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: S[2], marginBottom: S[2] }}>
+                        <span className="kd-micro" style={{ letterSpacing: ".22em" }}>{grp}</span>
                         <span style={{ flex: 1, height: 1, background: C.rule }} />
                       </div>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: S[2] }}>
                         {items.map((f) => {
                           const on = f.id === formId;
                           return (
                             <button key={f.id} className="kd-btn kd-form-chip" onClick={() => { setFormId(f.id); setSegIdx(null); }}
+                              aria-pressed={on}
                               style={{
                                 border: "1px solid " + (on ? C.ink : C.rule),
                                 background: on ? C.ink : C.panel,
                                 color: on ? C.panel : C.ink,
                                 padding: "6px 10px 7px", textAlign: "left", minWidth: 84,
                               }}>
-                              <div style={{ fontFamily: MINCHO, fontSize: 17, display: "flex", alignItems: "flex-end" }}>
+                              <div style={{ fontFamily: MINCHO, fontSize: JP.sm, display: "flex", alignItems: "flex-end" }}>
                                 {f.segs.map((s, i) => (
-                                  <Word key={i} text={s.text} kana={s.kana} mode={script} ruby={8}
-                                    rubyColor={on ? "#c9cfd6" : C.muted} />
+                                  <Word key={i} text={s.text} kana={s.kana} mode={script} ruby={RUBY.sm}
+                                    rubyColor={on ? C.onInkDim : C.muted} />
                                 ))}
                               </div>
-                              <div style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: ".08em", marginTop: 2, color: on ? "#c9cfd6" : C.muted }}>
+                              <div style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".08em", marginTop: 2, color: on ? C.onInkDim : C.muted }}>
                                 {f.label.toUpperCase()}
                               </div>
                             </button>
@@ -1959,7 +2095,7 @@ export default function App() {
                 })}
               </div>
               {forms.length > 0 && shown.length === 0 && (
-                <div style={{ fontSize: 12.5, color: C.muted, border: "1px dashed " + C.rule, padding: "14px 16px" }}>
+                <div style={{ fontSize: T.base, color: C.muted, border: "1px dashed " + C.rule, padding: "14px 16px" }}>
                   No forms enabled. Turn some on in Settings.
                 </div>
               )}
@@ -1971,9 +2107,9 @@ export default function App() {
 
       {audioNote && (
         <div className="kd-toast">
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <span style={{ fontFamily: MONO, fontSize: 8.5, letterSpacing: ".16em", color: C.stem, paddingTop: 2, flexShrink: 0 }}>AUDIO</span>
-            <span style={{ fontSize: 12, lineHeight: 1.55, flex: 1 }}>{audioNote}</span>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: S[3] }}>
+            <span className="kd-micro" style={{ letterSpacing: ".16em", color: C.stem, paddingTop: 2, flexShrink: 0 }}>AUDIO</span>
+            <span style={{ fontSize: T.sm, lineHeight: 1.55, flex: 1 }}>{audioNote}</span>
             <button className="kd-btn" onClick={() => setAudioNote(null)} aria-label="Dismiss"
               style={{ color: C.muted, padding: 2, lineHeight: 0, flexShrink: 0 }}>
               <X size={13} />
@@ -1982,13 +2118,11 @@ export default function App() {
         </div>
       )}
 
-      <footer style={{ borderTop: "1px solid " + C.rule, marginTop: 26 }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "12px 18px", display: "flex", gap: 16, flexWrap: "wrap", fontFamily: MONO, fontSize: 9, letterSpacing: ".14em", color: C.muted }}>
-          <span style={{ color: C.root }}>■ ROOT</span>
-          <span style={{ color: C.stem }}>■ SHIFTING KANA</span>
-          <span style={{ color: C.aux }}>■ AUXILIARY</span>
-          <span style={{ color: C.extra }}>■ STACKED SUFFIX</span>
-          <span style={{ marginLeft: "auto" }}>
+      {/* The colour legend used to live here. It explains the app's core
+          mechanic, so it now sits beside the colours it describes, on the strip. */}
+      <footer style={{ borderTop: "1px solid " + C.rule, marginTop: S[6] }}>
+        <div className="kd-micro" style={{ maxWidth: 1120, margin: "0 auto", padding: "12px 18px", display: "flex", gap: S[4], flexWrap: "wrap", letterSpacing: ".14em" }}>
+          <span>
             AUDIO:{" "}
             {!speech.supported
               ? "UNSUPPORTED IN THIS FRAME"
@@ -2000,7 +2134,7 @@ export default function App() {
           </span>
         </div>
         {/* CC BY-SA makes this a licence condition, not a courtesy. */}
-        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "0 18px 13px", fontSize: 11, lineHeight: 1.6, color: C.muted }}>
+        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "0 18px 13px", fontSize: T.fine, lineHeight: 1.6, color: C.muted }}>
           Dictionary data from{" "}
           <a href="https://www.edrdg.org/jmdict/j_jmdict.html" target="_blank" rel="noreferrer" style={{ color: C.aux }}>JMdict</a>
           {" "}by the{" "}
