@@ -360,11 +360,15 @@ eq(totals(r).n, 3, "totals count every attempt");
 const a = record(EMPTY, nomu, "te", true, 1000);
 const b = record(EMPTY, nomu, "te", false, 5000);
 const m = mergeStats(a, b);
-eq(statFor(m, nomu, "te").n, 2, "merge sums attempts");
-eq(statFor(m, nomu, "te").ok, 1, "merge sums correct");
+eq(statFor(m, nomu, "te").n, 1, "merge takes the max of attempts, not the sum");
+eq(statFor(m, nomu, "te").ok, 1, "merge takes the max of correct, not the sum");
 eq(statFor(m, nomu, "te").last, 5000, "merge takes the newer timestamp");
 eq(statFor(m, nomu, "te").streak, 0, "two streaks cannot be combined, so merge resets");
 eq(statFor(mergeStats(EMPTY, b), nomu, "te").n, 1, "merging into empty keeps the incoming row");
+eq(statFor(mergeStats(a, a), nomu, "te").n, 1, "merging stats with itself is idempotent");
+eq(statFor(mergeStats(a, a), nomu, "te").ok, 1, "merging stats with itself is idempotent (correct)");
+eq(statFor(mergeStats(EMPTY, a), nomu, "te").n, 1, "merging into EMPTY restores the incoming counts intact");
+eq(statFor(mergeStats(EMPTY, a), nomu, "te").ok, 1, "merging into EMPTY restores the incoming counts intact (correct)");
 
 // mergeStored defends untrusted boot and import data
 eq(mergeStored(null).entries, EMPTY.entries, "null returns empty-shaped output");

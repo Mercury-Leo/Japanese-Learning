@@ -1541,14 +1541,10 @@ export default function App() {
     });
     if (fresh.length) setWords((ws) => [...fresh, ...ws]);
     /* Stats key on word|reading, the same pair used for dedup above, so they line
-       up with no id mapping — which is the whole reason they are not id-keyed. */
-    /* Re-importing the same file must not inflate counts. Merging is only safe
-       when the incoming deck brings words this device has not seen.
-       ponytail: counter-based merge cannot be idempotent, so this trades a rare
-       real case (re-importing after adding words on another device) for the common
-       accident. An event log with ids would fix it properly; see the spec's
-       "Deliberate limitation". */
-    if (incomingStats && fresh.length) setStats((s) => mergeStats(s, incomingStats));
+       up with no id mapping. mergeStats is idempotent (max, not sum), so this is
+       safe whether the import restores progress onto an already-intact deck or
+       repeats a prior import by accident. */
+    if (incomingStats) setStats((s) => mergeStats(s, incomingStats));
     return fresh.length;
   }
 

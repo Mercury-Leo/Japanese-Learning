@@ -104,8 +104,13 @@ export function totals(stats) {
   return { n, ok };
 }
 
-/** Import merge. Streaks are dropped: two histories cannot be interleaved, and
- *  a wrong streak is worse than no streak. */
+/** Import merge. Re-importing a file must be a no-op, so counts take the
+ *  higher of the two sides rather than summing — summing would inflate every
+ *  time the same export gets imported again. Streaks are dropped: two
+ *  histories cannot be interleaved, and a wrong streak is worse than no streak.
+ *  Cost, paid honestly: two devices with genuinely separate histories merge
+ *  conservatively (20 and 20 becomes 20, not 40) — it undercounts rather than
+ *  inflates, which is the safer direction. */
 export function mergeStats(a, b) {
   const entries = { ...a.entries };
   for (const k of Object.keys(b.entries)) {
@@ -113,7 +118,7 @@ export function mergeStats(a, b) {
     for (const f of Object.keys(b.entries[k])) {
       const x = entries[k][f], y = b.entries[k][f];
       entries[k][f] = x
-        ? { n: x.n + y.n, ok: x.ok + y.ok, last: Math.max(x.last, y.last), streak: 0 }
+        ? { n: Math.max(x.n, y.n), ok: Math.max(x.ok, y.ok), last: Math.max(x.last, y.last), streak: 0 }
         : { ...y };
     }
   }
