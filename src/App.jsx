@@ -13,6 +13,7 @@ import {
 } from "./engine.js";
 import { DEFAULTS, mergeSettings, visibleForms, visibleMods, wordInScope, JLPT } from "./settings.js";
 import SettingsView from "./SettingsView.jsx";
+import ProgressView from "./ProgressView.jsx";
 
 /* ============================================================
    SCRIPT RENDERING — furigana / kanji / kana
@@ -1720,7 +1721,7 @@ export default function App() {
             </div>
           </div>
           <div className="kd-seg">
-            {[["deck", "Deck"], ["vocab", "Vocab"], ["quiz", "Quiz"], ["settings", "Settings"]].map(([id, label]) => {
+            {[["deck", "Deck"], ["vocab", "Vocab"], ["quiz", "Quiz"], ["progress", "Progress"], ["settings", "Settings"]].map(([id, label]) => {
               const on = view === id;
               return (
                 <button key={id} className="kd-btn kd-form-chip" onClick={() => goto(id)}
@@ -1792,6 +1793,8 @@ export default function App() {
           onDelete={removeWord}
         />
       )}
+
+      {view === "progress" && <ProgressView stats={stats} words={words} />}
 
       {view === "settings" && (
         <SettingsView
