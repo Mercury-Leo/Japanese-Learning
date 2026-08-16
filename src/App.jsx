@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { Plus, Trash2, X, Search, Volume2, Undo2, Download, Upload } from "lucide-react";
 
 import { C, ROLE_COLOR, MINCHO, SANS, MONO, T, JP, RUBY, S, THEME_CSS, THEMES, applyTheme } from "./theme.js";
-import { storage, KEY, SKEY, GKEY, readTheme, writeTheme } from "./storage.js";
+import { storage, KEY, SKEY, GKEY, PKEY, readTheme, writeTheme } from "./storage.js";
+import { EMPTY, MEANING, record, mergeStored } from "./stats.js";
 import { SPEECH_OK, speak, useSpeechStatus, setAudioReporter } from "./speech.js";
 import { lookupWord, fetchExamples, warmDict } from "./api.js";
 import {
@@ -590,7 +591,7 @@ function VocabView({ words, scopedCount, script, settings, onOpen, onAdd, onDele
 /* ============================================================
    QUIZ
    ============================================================ */
-function Quiz({ words, script, onProgress, settings }) {
+function Quiz({ words, script, onProgress, settings, stats, onRecord }) {
   /* A conjugation drill should not double as a kanji-reading drill by accident,
      so the reading stays visible here even when the deck is set to 漢字 only. */
   const qMode = script === "kana" ? "kana" : "furigana";
@@ -690,32 +691,36 @@ function Quiz({ words, script, onProgress, settings }) {
   const target = current && !isMean ? cForms.find((f) => f.id === current.formId) : null;
   const source = current && current.fromId ? cForms.find((f) => f.id === current.fromId) : null;
 
+  /* One place to judge, so there is exactly one place that records. Deliberately
+     NOT a useEffect on `judged`: StrictMode double-invokes effects in dev and
+     would double-count every answer. */
+  function judge(ok, chose) {
+    setJudged(chose === undefined ? { ok } : { ok, chose });
+    if (ok) setRight((r) => r + 1);
+    else setMisses((m) => [...m, current]);
+    if (onRecord && cWord) onRecord(cWord, isMean ? MEANING : current.formId, ok);
+  }
+
   function submit() {
     if (!current || !target) return;
     if (judged) return advance();
     if (!input.trim()) return;
     const settled = ime ? settleKana(input) : input;
     if (settled !== input) setInput(settled);
-    const ok = answerMatches(settled, target);
-    setJudged({ ok });
-    if (ok) setRight((r) => r + 1);
-    else setMisses((m) => [...m, current]);
+    judge(answerMatches(settled, target));
   }
 
   function choose(id) {
     if (judged || !current) return;
     /* Form questions are answered with a form id, meaning questions with a
        word id — same picker, two different keys. */
-    const ok = id === (current.kind === "recognise" ? current.formId : current.wordId);
-    setJudged({ ok, chose: id });
-    if (ok) setRight((r) => r + 1);
-    else setMisses((m) => [...m, current]);
+    judge(id === (current.kind === "recognise" ? current.formId : current.wordId), id);
   }
 
   function reveal() {
+    /* "Show me" counts as a miss: not knowing it is not knowing it. */
     if (judged || !target) return;
-    setJudged({ ok: false });
-    setMisses((m) => [...m, current]);
+    judge(false);
   }
 
   function advance() {
@@ -1230,6 +1235,7 @@ function Quiz({ words, script, onProgress, settings }) {
    ============================================================ */
 export default function App() {
   const [words, setWords] = useState([]);
+  const [stats, setStats] = useState(EMPTY);
   const [ready, setReady] = useState(false);
   const [selId, setSelId] = useState(null);
   const [query, setQuery] = useState("");
@@ -1270,6 +1276,10 @@ export default function App() {
         const g = await storage.get(GKEY);
         setSettings(mergeSettings(JSON.parse(g.value)));
       } catch { /* first run — DEFAULTS stand */ }
+      try {
+        const p = await storage.get(PKEY);
+        setStats(mergeStored(JSON.parse(p.value)));
+      } catch { /* first run — EMPTY stands */ }
       if (!alive) return;
       const list = Array.isArray(loaded) && loaded.length ? loaded : SEED;
       setWords(list);
@@ -1300,6 +1310,13 @@ export default function App() {
       try { await storage.set(GKEY, JSON.stringify(settings)); } catch { /* session-only */ }
     })();
   }, [settings, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    (async () => {
+      try { await storage.set(PKEY, JSON.stringify(stats)); } catch { /* session-only */ }
+    })();
+  }, [stats, ready]);
 
   useEffect(() => {
     applyTheme(theme);
@@ -1456,6 +1473,12 @@ export default function App() {
 
   function saveExamples(id, examples) {
     setWords((ws) => ws.map((w) => (w.id === id ? { ...w, examples } : w)));
+  }
+
+  /* Called from Quiz on every judged answer. Date.now() lives here rather than in
+     stats.js so that module stays pure and testable. */
+  function recordAnswer(word, formId, ok) {
+    setStats((s) => record(s, word, formId, ok, Date.now()));
   }
 
   /** Merge an imported deck, skipping entries already present. */
@@ -1699,7 +1722,8 @@ export default function App() {
 
       {view === "quiz" && (
         <div style={{ maxWidth: 1120, margin: "0 auto", padding: S[4] }}>
-          <Quiz words={scopedWords} script={script} onProgress={setQuizRun} settings={settings} />
+          <Quiz words={scopedWords} script={script} onProgress={setQuizRun}
+                settings={settings} stats={stats} onRecord={recordAnswer} />
         </div>
       )}
 
