@@ -3,7 +3,7 @@ import { Plus, Trash2, X, Search, Volume2, Undo2, Download, Upload } from "lucid
 
 import { C, ROLE_COLOR, MINCHO, SANS, MONO, T, JP, RUBY, S, THEME_CSS, THEMES, applyTheme } from "./theme.js";
 import { storage, KEY, SKEY, GKEY, PKEY, readTheme, writeTheme } from "./storage.js";
-import { EMPTY, MEANING, record, mergeStored, ruleKey, byRule, wordAccuracy } from "./stats.js";
+import { EMPTY, MEANING, record, mergeStats, mergeStored, ruleKey, byRule, wordAccuracy } from "./stats.js";
 import { SPEECH_OK, speak, useSpeechStatus, setAudioReporter } from "./speech.js";
 import { lookupWord, fetchExamples, warmDict } from "./api.js";
 import {
@@ -324,12 +324,12 @@ function ExamplesPanel({ word, script, onSave, settings }) {
 /* ============================================================
    EXPORT / IMPORT
    ============================================================ */
-function DeckTools({ words, onImport }) {
+function DeckTools({ words, stats, onImport }) {
   const [note, setNote] = useState(null);
   const fileRef = useRef(null);
 
   function exportDeck() {
-    const payload = JSON.stringify({ format: "kotoba-deck", version: 1, exportedAt: new Date().toISOString(), words }, null, 2);
+    const payload = JSON.stringify({ format: "kotoba-deck", version: 1, exportedAt: new Date().toISOString(), words, stats }, null, 2);
     try {
       const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
       const a = document.createElement("a");
@@ -344,7 +344,7 @@ function DeckTools({ words, onImport }) {
   }
 
   async function copyDeck() {
-    const payload = JSON.stringify({ format: "kotoba-deck", version: 1, words }, null, 2);
+    const payload = JSON.stringify({ format: "kotoba-deck", version: 1, words, stats }, null, 2);
     try {
       await navigator.clipboard.writeText(payload);
       setNote({ kind: "ok", text: "Deck JSON copied to the clipboard." });
@@ -377,7 +377,10 @@ function DeckTools({ words, onImport }) {
             ...(typeof w.common === "boolean" ? { common: w.common } : {}),
           }));
         if (!clean.length) throw new Error("empty");
-        const added = onImport(clean);
+        /* Sanitised through the same gate as stored values — an import file is just as
+           untrusted as localStorage. */
+        const incomingStats = parsed && parsed.stats ? mergeStored(parsed.stats) : null;
+        const added = onImport(clean, incomingStats);
         setNote({ kind: "ok", text: "Added " + added + " of " + clean.length + (clean.length - added > 0 ? " — the rest were already in the deck." : ".") });
       } catch {
         setNote({ kind: "bad", text: "That file is not a deck export — it needs a words array of entries." });
@@ -1527,7 +1530,7 @@ export default function App() {
   }
 
   /** Merge an imported deck, skipping entries already present. */
-  function importWords(incoming) {
+  function importWords(incoming, incomingStats) {
     const have = new Set(words.map((w) => w.word + "|" + w.reading));
     const seen = new Set();
     const fresh = incoming.filter((w) => {
@@ -1537,6 +1540,15 @@ export default function App() {
       return true;
     });
     if (fresh.length) setWords((ws) => [...fresh, ...ws]);
+    /* Stats key on word|reading, the same pair used for dedup above, so they line
+       up with no id mapping — which is the whole reason they are not id-keyed. */
+    /* Re-importing the same file must not inflate counts. Merging is only safe
+       when the incoming deck brings words this device has not seen.
+       ponytail: counter-based merge cannot be idempotent, so this trades a rare
+       real case (re-importing after adding words on another device) for the common
+       accident. An event log with ids would fix it properly; see the spec's
+       "Deliberate limitation". */
+    if (incomingStats && fresh.length) setStats((s) => mergeStats(s, incomingStats));
     return fresh.length;
   }
 
@@ -1974,7 +1986,7 @@ export default function App() {
               );
             })}
           </div>
-          <DeckTools words={words} onImport={importWords} />
+          <DeckTools words={words} stats={stats} onImport={importWords} />
         </aside>
 
         {/* ---------------- analysis stage ---------------- */}
