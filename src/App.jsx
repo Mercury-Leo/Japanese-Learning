@@ -3,7 +3,7 @@ import { Plus, Trash2, X, Search, Volume2, Undo2, Download, Upload } from "lucid
 
 import { C, ROLE_COLOR, MINCHO, SANS, MONO, T, JP, RUBY, S, THEME_CSS, THEMES, applyTheme } from "./theme.js";
 import { storage, KEY, SKEY, GKEY, PKEY, readTheme, writeTheme } from "./storage.js";
-import { EMPTY, MEANING, record, mergeStored } from "./stats.js";
+import { EMPTY, MEANING, record, mergeStored, ruleKey, byRule } from "./stats.js";
 import { SPEECH_OK, speak, useSpeechStatus, setAudioReporter } from "./speech.js";
 import { lookupWord, fetchExamples, warmDict } from "./api.js";
 import {
@@ -932,6 +932,18 @@ function Quiz({ words, script, onProgress, settings, stats, onRecord }) {
   if (stage === "done") {
     const wrongN = queue.length - right;
     const pct = queue.length ? Math.round((right / queue.length) * 100) : 0;
+
+    /* Lifetime accuracy for the rules this run actually touched — the run's own
+       sample is far too small to call anything a weakness. minN of 3 keeps a single
+       lucky or unlucky answer from being reported as a diagnosis. */
+    const touched = new Set();
+    for (const q of queue) {
+      const w = words.find((x) => x.id === q.wordId);
+      /* A word deleted mid-run has no type, so it can name no rule — skip it
+         rather than letting ruleKey mint an "undefined.te" bucket. */
+      if (w) touched.add(ruleKey(w, q.kind.startsWith("mean") ? MEANING : q.formId).id);
+    }
+    const runRules = byRule(stats, words, 3).filter((r) => touched.has(r.id));
     return (
       <div style={{ display: "flex", gap: S[4] + 2, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ ...box, flex: "1 1 240px", minWidth: 230 }}>
@@ -1001,6 +1013,27 @@ function Quiz({ words, script, onProgress, settings, stats, onRecord }) {
                   </div>
                 );
               })}
+            </div>
+          )}
+          {runRules.length > 0 && (
+            <div style={{ marginTop: S[5], borderTop: "1px solid " + C.ruleSoft, paddingTop: S[3] }}>
+              <div className="kd-micro" style={{ marginBottom: S[3] }}>By rule · lifetime</div>
+              <div style={{ display: "grid", gap: S[2] }}>
+                {runRules.map((r) => (
+                  <div key={r.id} style={{ display: "flex", alignItems: "center", gap: S[3] }}>
+                    <span style={{ fontSize: T.sm, flex: "1 1 auto", minWidth: 0 }}>
+                      {r.label}
+                      {r.jp && <span style={{ fontFamily: MINCHO, color: C.muted, marginLeft: S[1] + 1 }}>{r.jp}</span>}
+                    </span>
+                    <span style={{ flex: "0 0 64px", height: 4, background: C.ruleSoft, display: "flex" }}>
+                      <span style={{ width: r.pct + "%", background: r.pct < 60 ? C.stem : C.aux }} />
+                    </span>
+                    <span style={{ fontFamily: MONO, fontSize: T.micro, color: C.muted, flex: "0 0 auto" }}>
+                      {r.pct}% · {r.n}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
