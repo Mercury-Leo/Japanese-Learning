@@ -225,8 +225,8 @@ eq(totals(r).n, 3, "totals count every attempt");
 const a = record(EMPTY, nomu, "te", true, 1000);
 const b = record(EMPTY, nomu, "te", false, 5000);
 const m = mergeStats(a, b);
-eq(statFor(m, nomu, "te").n, 2, "merge sums attempts");
-eq(statFor(m, nomu, "te").ok, 1, "merge sums correct");
+eq(statFor(m, nomu, "te").n, 1, "merge takes the max attempts, not the sum");
+eq(statFor(m, nomu, "te").ok, 1, "merge takes the max correct");
 eq(statFor(m, nomu, "te").last, 5000, "merge takes the newer timestamp");
 eq(statFor(m, nomu, "te").streak, 0, "two streaks cannot be combined, so merge resets");
 eq(statFor(mergeStats(EMPTY, b), nomu, "te").n, 1, "merging into empty keeps the incoming row");
@@ -346,8 +346,10 @@ export function totals(stats) {
   return { n, ok };
 }
 
-/** Import merge. Streaks are dropped: two histories cannot be interleaved, and
- *  a wrong streak is worse than no streak. */
+/** Import merge. Counters take the max rather than the sum, so re-importing a
+ *  file is a no-op — see Task 6 Step 5 for why that matters. Streaks are
+ *  dropped: two histories cannot be interleaved, and a wrong streak is worse
+ *  than no streak. */
 export function mergeStats(a, b) {
   const entries = { ...a.entries };
   for (const k of Object.keys(b.entries)) {
@@ -355,7 +357,7 @@ export function mergeStats(a, b) {
     for (const f of Object.keys(b.entries[k])) {
       const x = entries[k][f], y = b.entries[k][f];
       entries[k][f] = x
-        ? { n: x.n + y.n, ok: x.ok + y.ok, last: Math.max(x.last, y.last), streak: 0 }
+        ? { n: Math.max(x.n, y.n), ok: Math.max(x.ok, y.ok), last: Math.max(x.last, y.last), streak: 0 }
         : { ...y };
     }
   }
@@ -756,22 +758,41 @@ function importWords(incoming, incomingStats) {
 5. Deck → **IMPORT** the file. Expected: percentages return, even though every word id was regenerated on import. This is the exact failure the natural key exists to prevent.
 6. Import the same file a second time. Expected: no new words ("the rest were already in the deck"), but note that stats **do** sum again — see below.
 
-- [ ] **Step 5: Guard double-import inflation**
+- [ ] **Step 5: Make the merge idempotent**
 
-Step 4.6 exposes a real flaw: re-importing the same file sums the stats again, inflating `n`. Fix by only merging stats for words that were actually new, plus words already present — i.e. always merge, but make merge idempotent is *not* possible with counters. Instead, skip the stats merge when nothing was fresh **and** the incoming stats are a subset:
+Step 4.6 exposes a real flaw: re-importing the same file sums the stats again,
+inflating `n`.
+
+> **Amended during execution.** This step originally guarded the merge on
+> `fresh.length` — merge only when the import brought new words. Review found
+> that silently breaks Step 4.5's restore case: stats cleared, deck intact,
+> user re-imports to recover. Both scenarios present `fresh.length === 0`, so
+> the guard cannot tell them apart. Fixed by making the merge idempotent
+> instead of conditional.
+
+In `src/stats.js`, `mergeStats` takes `Math.max` of `n` and of `ok` per entry
+rather than summing them. Re-importing a file then becomes a no-op by
+construction, and restoring onto an intact deck works. The cost is that two
+devices with genuinely separate histories merge conservatively — 20 and 20
+becomes 20, not 40 — which undercounts rather than inflates, the safer
+direction for a counter you cannot deduplicate.
+
+In `importWords`, the merge is unconditional:
 
 ```js
-  /* Re-importing the same file must not inflate counts. Merging is only safe
-     when the incoming deck brings words this device has not seen. */
-  if (incomingStats && fresh.length) setStats((s) => mergeStats(s, incomingStats));
+  /* Stats key on word|reading — the same pair the dedup above uses — so they
+     line up with no id mapping. The merge takes the max of each counter rather
+     than summing, which makes it idempotent: restoring onto an intact deck and
+     accidentally importing twice both land on the same numbers. */
+  if (incomingStats) setStats((s) => mergeStats(s, incomingStats));
 ```
 
-Re-run Step 4.6 and confirm a second import leaves counts unchanged.
+Update the two `mergeStats` assertions in `test/engine.test.mjs` that assert
+summing, and add coverage for the two cases this exists to serve: merging a
+stats object with itself changes nothing, and merging into `EMPTY` restores the
+incoming counts intact.
 
-> `ponytail: counter-based merge cannot be idempotent, so this trades a rare
-> real case (re-importing after adding words on another device) for the common
-> accident. An event log with ids would fix it properly; see the spec's
-> "Deliberate limitation".`
+Re-run **both** Step 4.5 (restore) and Step 4.6 (double import) and confirm each.
 
 - [ ] **Step 6: Run the tests**
 
@@ -1011,7 +1032,16 @@ Two things this plan adds that the spec did not specify:
 1. **`mergeStored`** — the spec described the merge for import but not the
    validation of stored values. `mergeSettings` already sets that precedent for
    `GKEY`, and a truncated localStorage value crashing boot is a real failure.
-2. **Double-import guard** (Task 6, Step 5). Only surfaced by writing the
-   verification steps out. Counter-based merges cannot be idempotent, so the
-   plan takes the trade explicitly and marks it with a `ponytail:` comment
-   rather than leaving it to be discovered as a bug.
+2. **Double-import handling** (Task 6, Step 5). Only surfaced by writing the
+   verification steps out.
+
+   The first attempt guarded the merge on `fresh.length`, on the reasoning that
+   counter-based merges cannot be idempotent. Review during execution showed
+   that reasoning was wrong on both counts: the guard silently broke the
+   restore case in Step 4.5, and counters *can* be made idempotent by taking
+   the max instead of the sum. Step 5 now does that, and needs no guard.
+
+   Worth recording as a process note: the defect existed because Step 4.5 was
+   verified before Step 5's guard was applied and never re-run afterwards. A
+   verification step that runs only once, before a later step changes the code
+   it exercises, is not a verification step.
