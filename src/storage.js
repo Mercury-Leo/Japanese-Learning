@@ -4,6 +4,7 @@ export const KEY = "kotoba-deck-v1";
 export const SKEY = "kotoba-script-v1";
 export const GKEY = "kotoba-settings-v1";
 export const TKEY = "kotoba-theme-v1";
+export const PKEY = "kotoba-stats-v1";
 
 /* Theme is the one preference that has to be known before the first paint, so it
    gets a synchronous pair rather than going through the async shape below. It is

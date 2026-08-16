@@ -10,6 +10,7 @@ import {
 } from "../src/engine.js";
 import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope } from "../src/settings.js";
 import { tagsFromLookup, candidateWithTags, rankMatches } from "../src/api.js";
+import { EMPTY, MEANING, wordKey, record, statFor, ruleKey, byRule, wordAccuracy, totals, mergeStats } from "../src/stats.js";
 
 let pass = 0, fail = 0;
 const eq = (got, want, label) => {
@@ -307,6 +308,64 @@ eq(teRule(W("勉強する", "べんきょうする", "suru")), null, "suru has n
 eq(teRule(W("高い", "たかい", "i-adj")), null, "i-adj has no euphonic rule");
 eq(teRule(W("飲む", "のむ", "godan")).jp, "撥音便", "the label names the 音便 for display");
 
+/* ---------------- quiz stats ---------------- */
+group("quiz stats");
+const nomu = W("飲む", "のむ", "godan");
+const asobu = W("遊ぶ", "あそぶ", "godan");
+const taberu = W("食べる", "たべる", "ichidan");
+
+// keyed on the natural pair, because Import mints fresh ids
+eq(wordKey(nomu), "飲む|のむ", "key is word|reading");
+
+// recording is pure and accumulates
+let s = record(EMPTY, nomu, "te", true, 1000);
+s = record(s, nomu, "te", false, 2000);
+eq(statFor(s, nomu, "te").n, 2, "two attempts recorded");
+eq(statFor(s, nomu, "te").ok, 1, "one correct");
+eq(statFor(s, nomu, "te").last, 2000, "last is the newest timestamp");
+eq(statFor(s, nomu, "te").streak, -1, "a miss resets the streak negative");
+eq(statFor(record(s, nomu, "te", false, 3000), nomu, "te").streak, -2, "consecutive misses deepen the streak");
+eq(statFor(record(record(s, nomu, "te", true, 3000), nomu, "te", true, 4000), nomu, "te").streak, 2, "consecutive hits climb");
+eq(EMPTY.entries["飲む|のむ"], undefined, "record does not mutate its input");
+eq(statFor(EMPTY, nomu, "te"), null, "unseen pairs report null, not a zeroed row");
+
+// rules aggregate across different words sharing one grammar rule
+eq(ruleKey(nomu, "te").id, "godan.te.hatsuon", "godan te-form uses the euphonic rule");
+eq(ruleKey(nomu, "teiru").id, "godan.te.hatsuon", "ている consumes the same て, so same rule");
+eq(ruleKey(nomu, "ta").id, "godan.te.hatsuon", "た comes from the same euphonic change");
+eq(ruleKey(nomu, "nakatta").id, "godan.nakatta", "なかった builds off the A-stem, no 音便");
+eq(ruleKey(nomu, "masu").id, "godan.masu", "non-te forms fall through to type.form");
+eq(ruleKey(taberu, "te").id, "ichidan.te", "ichidan te-form has no euphonic rule");
+eq(ruleKey(nomu, MEANING).id, "meaning", "meaning questions get their own bucket");
+eq(ruleKey(nomu, "masu").label.length > 0, true, "the fallback still carries a display label");
+
+let r = record(EMPTY, nomu, "te", false, 1000);
+r = record(r, asobu, "te", false, 1000);
+r = record(r, asobu, "te", true, 2000);
+const rules = byRule(r, [nomu, asobu]);
+eq(rules.length, 1, "飲む and 遊ぶ collapse into one 撥音便 bucket");
+eq(rules[0].id, "godan.te.hatsuon", "and it is the nasal rule");
+eq(rules[0].n, 3, "three attempts across both words");
+eq(rules[0].ok, 1, "one of them correct");
+eq(rules[0].pct, 33, "percentage rounds");
+eq(byRule(r, [nomu, asobu], 4).length, 0, "minN suppresses thin buckets");
+eq(byRule(r, []).length, 0, "words no longer in the deck are skipped, not crashed on");
+
+// per-word and overall
+eq(wordAccuracy(r, asobu).n, 2, "word accuracy sums that word's forms");
+eq(wordAccuracy(r, taberu).n, 0, "an undrilled word reports zero, not null");
+eq(totals(r).n, 3, "totals count every attempt");
+
+// merge on import
+const a = record(EMPTY, nomu, "te", true, 1000);
+const b = record(EMPTY, nomu, "te", false, 5000);
+const m = mergeStats(a, b);
+eq(statFor(m, nomu, "te").n, 2, "merge sums attempts");
+eq(statFor(m, nomu, "te").ok, 1, "merge sums correct");
+eq(statFor(m, nomu, "te").last, 5000, "merge takes the newer timestamp");
+eq(statFor(m, nomu, "te").streak, 0, "two streaks cannot be combined, so merge resets");
+eq(statFor(mergeStats(EMPTY, b), nomu, "te").n, 1, "merging into empty keeps the incoming row");
+
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so
 // tapping a godan stem unmounted the whole tree. Nothing that only calls the
@@ -321,6 +380,7 @@ const appCode = decomment(appSrc);
 const modules = [
   ["engine.js", /import \{([^{}]*?)\} from "\.\/engine\.js"/],
   ["settings.js", /import \{([^{}]*?)\} from "\.\/settings\.js"/],
+  ["stats.js", /import \{([^{}]*?)\} from "\.\/stats\.js"/],
 ];
 for (const [file, importRe] of modules) {
   const exported = names(decomment(read("../src/" + file)), /export \{([^{}]*?)\}/)
