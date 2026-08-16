@@ -3,7 +3,7 @@ import { Plus, Trash2, X, Search, Volume2, Undo2, Download, Upload } from "lucid
 
 import { C, ROLE_COLOR, MINCHO, SANS, MONO, T, JP, RUBY, S, THEME_CSS, THEMES, applyTheme } from "./theme.js";
 import { storage, KEY, SKEY, GKEY, PKEY, readTheme, writeTheme } from "./storage.js";
-import { EMPTY, MEANING, record, mergeStored, ruleKey, byRule } from "./stats.js";
+import { EMPTY, MEANING, record, mergeStored, ruleKey, byRule, wordAccuracy } from "./stats.js";
 import { SPEECH_OK, speak, useSpeechStatus, setAudioReporter } from "./speech.js";
 import { lookupWord, fetchExamples, warmDict } from "./api.js";
 import {
@@ -466,7 +466,7 @@ const VOCAB_GROUPS = [
   { id: "other", label: "Nouns & rest", jp: "名詞", types: ["noun"] },
 ];
 
-function VocabView({ words, scopedCount, script, settings, onOpen, onAdd, onDelete }) {
+function VocabView({ words, scopedCount, script, settings, stats, onOpen, onAdd, onDelete }) {
   const [grp, setGrp] = useState("all");
   const [q, setQ] = useState("");
   const [confirm, setConfirm] = useState(null);
@@ -559,6 +559,18 @@ function VocabView({ words, scopedCount, script, settings, onOpen, onAdd, onDele
               {w.jlpt && <span style={tag}>{w.jlpt}</span>}
               {(w.trans === "trans" || w.trans === "intrans") && <span style={tag}>{w.trans === "trans" ? "他" : "自"}</span>}
               {w.common === true && <span style={tag}>COMMON</span>}
+              {(() => {
+                const a = wordAccuracy(stats, w);
+                /* An undrilled word shows nothing rather than a demoralising 0%. */
+                if (!a.n) return null;
+                const p = Math.round((a.ok / a.n) * 100);
+                return (
+                  <span style={{ ...tag, color: p < 60 ? C.stem : C.aux, borderColor: p < 60 ? C.stem : C.aux }}
+                        title={a.ok + " of " + a.n + " correct"}>
+                    {p}%
+                  </span>
+                );
+              })()}
               <Say text={w.reading} label={"Play " + w.word} enabled={settings.show.audio} />
               <button className="kd-btn kd-del" title={"Delete " + w.word}
                 onClick={(e) => { e.stopPropagation(); setConfirm(w.id); }}
@@ -1766,6 +1778,7 @@ export default function App() {
           scopedCount={scopedWords.length}
           script={script}
           settings={settings}
+          stats={stats}
           onOpen={(id) => { setSelId(id); setView("deck"); }}
           onAdd={() => { warmDict(); setAdding(true); setView("deck"); }}
           onDelete={removeWord}
