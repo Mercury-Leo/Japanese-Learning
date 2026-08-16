@@ -424,14 +424,15 @@ git commit -m "Add the quiz stats module: record, roll up by rule, merge"
 At the top of `src/App.jsx`, beside the existing storage and settings imports:
 
 ```js
-import { EMPTY, MEANING, record, mergeStored, byRule, wordAccuracy, totals } from "./stats.js";
+import { EMPTY, MEANING, record, mergeStored } from "./stats.js";
 ```
 
 Update the `./storage.js` import to include `PKEY`.
 
-> `byRule`, `wordAccuracy` and `totals` are unused until Tasks 4–6. The wiring
-> check added in Task 2 only fails on *referenced but unimported* names, never
-> the reverse, so importing them now is safe.
+> Import only what this task uses. Tasks 4, 5 and 6 each extend this list when
+> they need `ruleKey`, `byRule`, `wordAccuracy`, `totals` and `mergeStats` — all
+> of them already modify this file, so it costs one line each and keeps every
+> intermediate commit free of dead imports.
 
 - [ ] **Step 2: Add the state and persistence in `App`**
 
@@ -575,7 +576,7 @@ for (const q of queue) {
 const runRules = byRule(stats, words, 3).filter((r) => touched.has(r.id));
 ```
 
-Add `ruleKey` to the `./stats.js` import list in `App.jsx`.
+Extend the `./stats.js` import list in `App.jsx` with `ruleKey` and `byRule`.
 
 - [ ] **Step 2: Render it**
 
@@ -637,7 +638,9 @@ git commit -m "Report accuracy by grammar rule on the quiz results screen"
 - Consumes: `wordAccuracy` from `./stats.js`.
 - Produces: nothing other tasks depend on.
 
-- [ ] **Step 1: Pass stats into `VocabView`**
+- [ ] **Step 1: Extend the import and pass stats into `VocabView`**
+
+Add `wordAccuracy` to the `./stats.js` import list in `App.jsx`.
 
 Add `stats` to the `VocabView` signature and to its render site in `App`:
 
@@ -719,7 +722,8 @@ const incomingStats = parsed && parsed.stats ? mergeStored(parsed.stats) : null;
 const added = onImport(clean, incomingStats);
 ```
 
-Add `mergeStored` to `DeckTools`'s available imports (already imported at module scope in Task 3).
+`mergeStored` is already imported at module scope from Task 3. Add `mergeStats` to
+the `./stats.js` import list in `App.jsx` — it is needed by Step 3.
 
 - [ ] **Step 3: Merge on the App side**
 
