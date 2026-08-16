@@ -10,7 +10,7 @@ import {
 } from "../src/engine.js";
 import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope } from "../src/settings.js";
 import { tagsFromLookup, candidateWithTags, rankMatches } from "../src/api.js";
-import { EMPTY, MEANING, wordKey, record, statFor, ruleKey, byRule, wordAccuracy, totals, mergeStats } from "../src/stats.js";
+import { EMPTY, MEANING, wordKey, record, statFor, ruleKey, byRule, wordAccuracy, totals, mergeStats, mergeStored } from "../src/stats.js";
 
 let pass = 0, fail = 0;
 const eq = (got, want, label) => {
@@ -365,6 +365,31 @@ eq(statFor(m, nomu, "te").ok, 1, "merge sums correct");
 eq(statFor(m, nomu, "te").last, 5000, "merge takes the newer timestamp");
 eq(statFor(m, nomu, "te").streak, 0, "two streaks cannot be combined, so merge resets");
 eq(statFor(mergeStats(EMPTY, b), nomu, "te").n, 1, "merging into empty keeps the incoming row");
+
+// mergeStored defends untrusted boot and import data
+eq(mergeStored(null).entries, EMPTY.entries, "null returns empty-shaped output");
+eq(mergeStored({}).entries, EMPTY.entries, "missing entries key returns empty entries");
+eq(mergeStored({ entries: "not an object" }).entries, EMPTY.entries, "non-object entries returns empty");
+
+const stored = {
+  entries: {
+    "飲む|のむ": {
+      te: { n: 3, ok: 2, last: 5000, streak: 1 },
+      ta: { n: "not a number", ok: 1, last: 1000 },
+      masu: { n: 2, ok: 2 },
+    },
+    "not an object": "invalid",
+  },
+};
+const cleaned = mergeStored(stored);
+eq(statFor(cleaned, nomu, "te").n, 3, "valid entry survives sanitization");
+eq(statFor(cleaned, nomu, "ta"), null, "entry with non-number n is dropped");
+eq(statFor(cleaned, nomu, "masu").last, 0, "missing last coerces to zero");
+eq(statFor(cleaned, nomu, "masu").streak, 0, "missing streak coerces to zero");
+
+const pristine = { version: 1, entries: { "飲む|のむ": { te: { n: 5, ok: 3, last: 9999, streak: 2 } } } };
+const roundtrip = mergeStored(JSON.parse(JSON.stringify(pristine)));
+eq(statFor(roundtrip, nomu, "te").n, 5, "well-formed data round-trips intact");
 
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so
