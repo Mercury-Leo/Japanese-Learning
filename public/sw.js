@@ -29,7 +29,18 @@ self.addEventListener("fetch", (e) => {
   };
 
   if (req.mode === "navigate") {
-    e.respondWith(fetch(req).then(store).catch(() => caches.match(req).then((hit) => hit || caches.match("./"))));
+    /* Still network first, so a new build is never hidden behind the cache — but only
+       for a moment. A bare fetch fails fast on a refused connection and not at all on
+       a dead one: an installed app launched against a stopped dev server or a wifi
+       with no route out blocked first paint until TCP gave up, tens of seconds of
+       staring at the splash. The cached shell now takes over after a second and a
+       half, and the network copy still lands in the cache for the next launch. */
+    const shell = () => caches.match(req).then((hit) => hit || caches.match("./"));
+    const net = fetch(req).then(store);
+    e.waitUntil(net.catch(() => {}));
+    e.respondWith(
+      Promise.race([net, new Promise((r) => setTimeout(r, 1500))]).then((res) => res || shell(), shell)
+    );
     return;
   }
   e.respondWith(caches.match(req).then((hit) => hit || fetch(req).then(store)));
