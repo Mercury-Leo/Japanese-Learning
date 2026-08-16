@@ -113,6 +113,10 @@ test/           the regression suite.
 - **Kana IME** in the answer field: type `itte`, get いって.
 - **Audio** via Web Speech, reading the kana.
 - **Export / import** the deck as JSON.
+- **Progress** — every answer is recorded per (word, form) and rolled up along
+  the *grammar*: "ぬ・ぶ・む → んで, 41%" is a diagnosis a flashcard app cannot
+  produce, because it needs to know those three verbs share one rule. Results
+  travel with Export / Import, keyed on word+reading rather than on a local id.
 
 ## Known limitations
 
@@ -150,10 +154,22 @@ from 変える (ichidan) by sound, so it's one tap to correct.
 Android has neither and falls back to sans — self-host a subsetted Noto Serif JP
 if that matters.
 
+**Progress is aggregate, not history.** Stats store totals per (word, form), so
+"accuracy ever" is available but "accuracy this month" is not. Trend lines would
+need an append-only event log — a different schema, not an extension of this one.
+
+**Merging two devices undercounts.** Import combines stats by taking the higher
+of each counter rather than adding them, which makes re-importing a file a
+no-op — restoring progress onto an intact deck and importing the same file twice
+both land on the same numbers. The cost is that two devices with genuinely
+separate histories merge conservatively: 20 attempts each becomes 20, not 40. It
+undercounts rather than inflates, which is the safer direction for a counter that
+cannot be deduplicated.
+
 ## Where to take it next
 
-Persisting quiz results per (word, form) is the highest-value addition. The
-questions are structured, so results aggregate along the *grammar* rather than
-the vocabulary: "て-form, ぬ/ぶ/む → んで: 41%" is a diagnosis no flashcard app
-can produce. Once that table exists, weighting question selection toward weak
-forms is a few lines.
+Sourcing example sentences is the highest-value remaining addition. The app still
+depends on an API key for example sentences — everything else runs fully offline.
+Replace the generated ones with real sentences from **[Tatoeba](https://tatoeba.org/)**
+(CC-licensed) or JMdict's `JMdict_e_examp.xml` instead. That removes the last
+external dependency and completes the offline-first design.
