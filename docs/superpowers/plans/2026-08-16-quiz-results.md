@@ -993,8 +993,14 @@ Under **Known limitations**:
 **Progress is aggregate, not history.** Stats store totals per (word, form), so
 "accuracy ever" is available but "accuracy this month" is not. Trend lines would
 need an append-only event log — a different schema, not an extension of this one.
-Re-importing a deck that brings no new words deliberately skips the stats merge,
-since counter-based merges cannot be idempotent.
+
+**Merging two devices undercounts.** Import combines stats by taking the higher
+of each counter rather than adding them, which makes re-importing a file a
+no-op — restoring progress onto an intact deck and importing the same file twice
+both land on the same numbers. The cost is that two devices with genuinely
+separate histories merge conservatively: 20 attempts each becomes 20, not 40. It
+undercounts rather than inflates, which is the safer direction for a counter that
+cannot be deduplicated.
 ```
 
 - [ ] **Step 3: Commit**
