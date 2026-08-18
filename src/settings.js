@@ -29,7 +29,9 @@ const VERB_TYPES = ["godan", "ichidan", "suru", "kuru"];
 
 /** Every form the app can render, deduped by id. Ids recur across word classes
  *  (dict, te, ta, nai, desu), which is why one flat list covers all of them. */
+let ALL_FORMS = null;
 export function allForms() {
+  if (ALL_FORMS) return ALL_FORMS;
   const out = [];
   const seen = new Set();
   for (const w of REPS)
@@ -38,7 +40,9 @@ export function allForms() {
         seen.add(f.id);
         out.push({ id: f.id, label: f.label, jp: f.jp, group: f.group });
       }
-  return out;
+  /* Fixed for the life of the process — it walks seven hard-coded representative
+     words. SettingsView called it on every render. */
+  return (ALL_FORMS = out);
 }
 
 const idsFor = (types) => {
@@ -72,15 +76,36 @@ export const PRESETS = {
   },
 };
 
+/* The four keys a preset owns. Everything else in `settings` is a preference the
+   learner set once and no preset may stomp. */
+const CONTENT = ["formIds", "modIds", "types", "jlpt"];
+
+export const PRESET_NAMES = [...Object.keys(PRESETS), "Custom"];
+
+export const contentOf = (s) => Object.fromEntries(CONTENT.map((k) => [k, s[k]]));
+
+/** Does this patch change what is being learnt (rather than how it looks)? */
+export const isContentPatch = (patch) => CONTENT.some((k) => k in patch);
+
+/** Set-equal on all four content lists — toggling a chip off and on again reorders
+ *  the array, so order must not count as a difference. */
+export const sameContent = (a, b) =>
+  CONTENT.every((k) => a[k].length === b[k].length && a[k].every((v) => b[k].includes(v)));
+
 export const DEFAULTS = {
   ...PRESETS.Beginner,
   trans: ["trans", "intrans"],
   commonOnly: false,
   show: { romaji: true, glosses: true, ladder: true, audio: true, examples: true },
+  preset: "Beginner",
+  /* The Custom slot: the learner's own saved content, Beginner until overridden. */
+  custom: { ...PRESETS.Beginner },
 };
 
 export const applyPreset = (name, settings) =>
-  PRESETS[name] ? { ...settings, ...PRESETS[name] } : settings;
+  name === "Custom" ? { ...settings, ...settings.custom, preset: "Custom" }
+  : PRESETS[name] ? { ...settings, ...PRESETS[name], preset: name }
+  : settings;
 
 /** Shallow-merge a stored payload over DEFAULTS. A hand-edited or older payload
  *  must not be able to produce an undefined array and crash a .includes() call. */
@@ -95,6 +120,8 @@ export function mergeSettings(stored) {
     trans: arr(s.trans, DEFAULTS.trans),
     commonOnly: typeof s.commonOnly === "boolean" ? s.commonOnly : DEFAULTS.commonOnly,
     show: { ...DEFAULTS.show, ...(s.show && typeof s.show === "object" ? s.show : {}) },
+    preset: PRESET_NAMES.includes(s.preset) ? s.preset : DEFAULTS.preset,
+    custom: Object.fromEntries(CONTENT.map((k) => [k, arr(s.custom?.[k], DEFAULTS.custom[k])])),
   };
 }
 

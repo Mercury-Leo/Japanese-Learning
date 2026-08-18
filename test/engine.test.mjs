@@ -2,13 +2,13 @@
    No framework: node test/engine.test.mjs  (or: npm test)
    Every case here corresponds to a bug that actually occurred during
    development, so deleting one is how a fixed bug comes back. */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import {
   romaji, toKana, settleKana, conjugate, detectType,
   stackInit, stackApply, answerMatches, columns, formText, meaningItems,
   teRule, SEED, TYPES,
 } from "../src/engine.js";
-import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope } from "../src/settings.js";
+import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope, contentOf, isContentPatch, sameContent } from "../src/settings.js";
 import { tagsFromLookup, candidateWithTags, rankMatches } from "../src/api.js";
 import { CHARTS, GROUPS, cell, read as chartRomaji } from "../src/charts.js";
 import { EMPTY, MEANING, wordKey, record, statFor, ruleKey, byRule, wordAccuracy, totals, mergeStats, mergeStored } from "../src/stats.js";
@@ -120,6 +120,23 @@ eq(after.commonOnly, true, "preset leaves commonOnly alone");
 eq(after.show.audio, false, "preset leaves show flags alone");
 eq(after.formIds.length > DEFAULTS.formIds.length, true, "Everything widens the form list");
 
+// Custom preset: loads the saved slot, and only claims to be a named preset while
+// the screen still matches it.
+eq(DEFAULTS.preset, "Beginner", "a first run is on Beginner, not Custom");
+eq(sameContent(DEFAULTS.custom, PRESETS.Beginner), true, "an untouched Custom slot is Beginner");
+const edited = { ...DEFAULTS, modIds: ["neg"] };
+eq(sameContent(edited, edited.custom), false, "an edit differs from the saved slot — Override is offered");
+const saved = { ...edited, custom: contentOf(edited) };
+eq(sameContent(saved, saved.custom), true, "after Override the slot matches, so it is offered no more");
+// Loading Custom must restore content only, never the display preferences.
+const loaded = applyPreset("Custom", { ...saved, ...PRESETS.Everything, commonOnly: true });
+eq(loaded.modIds.join(","), "neg", "Custom loads the saved content back");
+eq(loaded.preset, "Custom", "Custom is the active preset once loaded");
+eq(loaded.commonOnly, true, "Custom leaves commonOnly alone, like every other preset");
+eq(applyPreset("Everything", saved).custom.modIds.join(","), "neg", "a named preset does not wipe the saved slot");
+eq(isContentPatch({ formIds: [] }), true, "a form edit is content");
+eq(isContentPatch({ show: {} }) || isContentPatch({ commonOnly: true }), false, "display and frequency are not");
+
 // A partial or junk payload must never yield undefined arrays.
 eq(mergeSettings({}).formIds.length, DEFAULTS.formIds.length, "empty stored object falls back to defaults");
 eq(mergeSettings({ formIds: ["te"] }).formIds.join(","), "te", "stored value wins");
@@ -127,6 +144,9 @@ eq(mergeSettings({ formIds: ["te"] }).types.length, 7, "missing key falls back")
 eq(mergeSettings(null).jlpt.length, 2, "null payload falls back");
 eq(mergeSettings({ formIds: "nonsense" }).formIds.length, DEFAULTS.formIds.length, "non-array is rejected");
 eq(mergeSettings({ show: { audio: false } }).show.glosses, true, "show is merged key-by-key, not replaced");
+eq(mergeSettings({ preset: "nonsense" }).preset, "Beginner", "an unknown preset name is rejected");
+eq(mergeSettings({ custom: { modIds: ["neg"] } }).custom.formIds.length, DEFAULTS.formIds.length,
+   "a half-written Custom slot falls back key-by-key");
 
 // The settings panel is built from this list, so a missing id means a form the
 // learner can never turn on.
@@ -402,29 +422,43 @@ eq(statFor(roundtrip, nomu, "te").n, 5, "well-formed data round-trips intact");
 /* ---------------- module wiring ---------------- */
 // GODAN was left out of App.jsx's import list when the single file was split, so
 // tapping a godan stem unmounted the whole tree. Nothing that only calls the
-// engine can see that, hence this static check on the import list itself.
+// engine can see that, hence this static check on the import lists themselves.
 group("module wiring");
 const read = (p) => readFileSync(new URL(p, import.meta.url), "utf8");
 const decomment = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 const names = (src, re) => (src.match(re)?.[1] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
-const appSrc = read("../src/App.jsx");
-const appCode = decomment(appSrc);
-const modules = [
-  ["engine.js", /import \{([^{}]*?)\} from "\.\/engine\.js"/],
-  ["settings.js", /import \{([^{}]*?)\} from "\.\/settings\.js"/],
-  ["stats.js", /import \{([^{}]*?)\} from "\.\/stats\.js"/],
-];
-for (const [file, importRe] of modules) {
-  const exported = names(decomment(read("../src/" + file)), /export \{([^{}]*?)\}/)
-    .concat([...decomment(read("../src/" + file)).matchAll(/export (?:const|function) (\w+)/g)].map((m) => m[1]));
-  const imported = names(appSrc, importRe);
-  eq(exported.length > 0, true, `found the export list of ${file}`);
-  for (const name of exported)
-    // \b treats "-" as a boundary, so a CSS class like .kd-seg reads as a
-    // reference to the export `seg`. Exclude hyphens on both sides.
-    if (new RegExp(`(?<![\\w-])${name}(?![\\w-])`).test(appCode))
-      eq(imported.includes(name), true, `App.jsx references ${name} but does not import it from ${file}`);
+/* Every component file, not just App.jsx: the same omission in Quiz.jsx or
+   VocabView.jsx is the same blank screen, and there are eight of them now. */
+const VIEWS = readdirSync(new URL("../src/", import.meta.url)).filter((f) => f.endsWith(".jsx"));
+const SOURCES = ["engine.js", "settings.js", "stats.js", "theme.js", "ui.jsx"];
+
+eq(VIEWS.length > 1, true, "found the component files");
+for (const view of VIEWS) {
+  const src = read("../src/" + view);
+  /* Strings and JSX text are not references: a Section labelled "Word classes"
+     is not a call to Word, and settings.show.romaji is not a call to romaji. */
+  const code = decomment(src).replace(/"[^"]*"|'[^']*'/g, '""').replace(/>[^<>{}]*</g, "><");
+  /* A name the file defines itself, or already imports from somewhere else,
+     needs no import from here — GROUPS is exported by both engine and charts. */
+  const local = new RegExp("(?:function|const|let)\\s+(\\w+)", "g");
+  const own = new Set([...code.matchAll(local)].map((m) => m[1]));
+  for (const m of src.matchAll(/import\s+\{([^}]*)\}\s+from\s+"\.\/([\w.]+)"/g))
+    for (const n of m[1].split(",")) own.add(n.trim().split(/\s+as\s+/).pop() + "@" + m[2]);
+  for (const file of SOURCES) {
+    if (view === file) continue;
+    const dep = decomment(read("../src/" + file));
+    const exported = names(dep, /export \{([^{}]*?)\}/)
+      .concat([...dep.matchAll(/export (?:const|function) (\w+)/g)].map((m) => m[1]));
+    const imported = names(src, new RegExp('import \\{([^{}]*?)\\} from "\\./' + file.replace(".", "\\.") + '"'));
+    eq(exported.length > 0, true, `found the export list of ${file}`);
+    for (const name of exported)
+      // \b treats "-" as a boundary, so a CSS class like .kd-seg reads as a
+      // reference to the export `seg`. Exclude hyphens on both sides.
+      if (!own.has(name) && ![...own].some((k) => k.startsWith(name + "@")) &&
+          new RegExp(`(?<![\\w.-])${name}(?![\\w-])`).test(code))
+        eq(imported.includes(name), true, `${view} references ${name} but does not import it from ${file}`);
+  }
 }
 
 /* ---------------- reference charts ---------------- */

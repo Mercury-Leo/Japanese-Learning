@@ -1,19 +1,8 @@
-import { C, MINCHO, MONO, T, S, THEMES } from "./theme.js";
+import { C, MINCHO, MONO, T, S, P, THEMES } from "./theme.js";
 import { TYPES, MODS, GROUPS, typeLabel } from "./engine.js";
-import { allForms, PRESETS, applyPreset, JLPT, SCRIPTS } from "./settings.js";
+import { allForms, PRESET_NAMES, applyPreset, contentOf, isContentPatch, sameContent, JLPT, SCRIPTS } from "./settings.js";
 import { getKey, setKey } from "./api.js";
-
-function Chip({ on, onClick, accent = C.aux, children }) {
-  return (
-    <button className="kd-btn kd-form-chip" onClick={onClick} aria-pressed={on}
-      style={{
-        border: "1px solid " + (on ? accent : C.rule),
-        background: on ? accent : "transparent",
-        color: on ? C.panel : C.ink,
-        padding: "6px 9px", fontSize: T.fine, textAlign: "left",
-      }}>{children}</button>
-  );
-}
+import { Chip } from "./ui.jsx";
 
 function Section({ label, onAll, onNone, children }) {
   return (
@@ -32,7 +21,11 @@ function Section({ label, onAll, onNone, children }) {
 const THEME_LABEL = { system: "System", light: "Light", dark: "Dark" };
 
 export default function SettingsView({ settings, onChange, wordCount, formCount, theme, onTheme, script, onScript }) {
-  const set = (patch) => onChange({ ...settings, ...patch });
+  /* Touching what is learnt drops you into Custom — the named preset no longer
+     describes the screen, so it must stop claiming to. Display, script and theme
+     edits are not content and leave the preset alone. */
+  const set = (patch) =>
+    onChange({ ...settings, ...patch, ...(isContentPatch(patch) ? { preset: "Custom" } : null) });
   const toggle = (key, id) =>
     set({ [key]: settings[key].includes(id) ? settings[key].filter((x) => x !== id) : [...settings[key], id] });
   const forms = allForms();
@@ -41,12 +34,23 @@ export default function SettingsView({ settings, onChange, wordCount, formCount,
     <div style={{ maxWidth: 1120, margin: "0 auto", padding: S[4] }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: S[3], marginBottom: S[4], flexWrap: "wrap" }}>
         <span className="kd-micro">Preset</span>
-        {Object.keys(PRESETS).map((name) => (
-          <button key={name} className="kd-btn kd-form-chip" onClick={() => onChange(applyPreset(name, settings))}
-            style={{ border: "1px solid " + C.ink, background: "transparent", color: C.ink, padding: "6px 11px", fontSize: T.fine }}>
-            {name}
+        {PRESET_NAMES.map((name) => {
+          const on = settings.preset === name;
+          return (
+            <Chip key={name} on={on} ink onClick={() => onChange(applyPreset(name, settings))}
+              title={name === "Custom" ? "Your own saved setup" : undefined}>
+              {name}
+            </Chip>
+          );
+        })}
+        {/* Only offered once there is something to save: on Custom, with edits that
+            the saved slot does not already hold. */}
+        {settings.preset === "Custom" && !sameContent(settings, settings.custom) && (
+          <button className="kd-btn kd-act" onClick={() => set({ custom: contentOf(settings) })}
+            title="Save these forms, modifiers, word classes and JLPT levels as your Custom preset">
+            OVERRIDE CUSTOM
           </button>
-        ))}
+        )}
         <span className="kd-micro" style={{ marginLeft: "auto", color: C.stem }}>
           {wordCount} words · {formCount} forms
         </span>
@@ -54,14 +58,8 @@ export default function SettingsView({ settings, onChange, wordCount, formCount,
 
       <Section label="Script">
         {SCRIPTS.map((s) => (
-          <button key={s.id} className="kd-btn kd-form-chip" onClick={() => onScript(s.id)}
-            aria-pressed={script === s.id} title={s.hint}
-            style={{
-              border: "1px solid " + (script === s.id ? C.ink : C.rule),
-              background: script === s.id ? C.ink : "transparent",
-              color: script === s.id ? C.panel : C.ink,
-              fontFamily: MINCHO, fontSize: T.md, padding: "5px 12px",
-            }}>{s.label}</button>
+          <Chip key={s.id} on={script === s.id} ink onClick={() => onScript(s.id)} title={s.hint}
+            style={{ fontFamily: MINCHO, fontSize: T.md }}>{s.label}</Chip>
         ))}
         <span style={{ fontSize: T.fine, color: C.muted, lineHeight: 1.5, flex: "1 1 200px", alignSelf: "center" }}>
           How every word is written across the app — the deck, the breakdown and the quiz all follow it.
@@ -147,7 +145,7 @@ export default function SettingsView({ settings, onChange, wordCount, formCount,
             autoComplete="off" spellCheck={false} aria-label="Anthropic API key"
             placeholder="sk-ant-..."
             style={{
-              width: "100%", maxWidth: 420, padding: "8px 10px", fontFamily: MONO, fontSize: T.sm,
+              width: "100%", maxWidth: 420, padding: P.btn, fontFamily: MONO, fontSize: T.sm,
               border: "1px solid " + C.rule, background: "transparent", color: C.ink,
             }} />
           <div style={{ fontSize: T.fine, color: C.muted, lineHeight: 1.6, marginTop: S[2] }}>

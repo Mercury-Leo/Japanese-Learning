@@ -56,8 +56,24 @@ export const RUBY = {
   xl: "var(--ruby-xl)",
 };
 
-/* 4px grid. Everything that used to be 2,3,5,6,7,9,11,13,18,22 snaps here. */
+/* 4px grid, for layout: gaps, margins, the space between things. Everything that
+   used to be 2,3,5,6,7,9,11,13,18,22 snaps here. */
 export const S = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 24, 6: 32 };
+
+/* Control padding, which S never covered — so every view invented its own. The
+   same toggle chip shipped as 6/9 in Settings, 6/10 in Vocab and 6/11 in the
+   quiz, sitting inches apart on screen. Five roles, one value each.
+
+   Deliberately not on the 4px grid: a control's mass is set by the text inside
+   it, and 4px steps are too coarse to separate a badge from a chip. S spaces
+   things out, P pads them. */
+export const P = {
+  tag: "3px 7px",    // a badge that only labels: JLPT, 他/自, CORRECT
+  chip: "6px 10px",  // a toggle: forms, presets, word classes, filters
+  row: "9px 11px",   // a row in a list
+  btn: "8px 12px",   // an inline button
+  wide: "11px 0",    // a full-width action button, centred
+};
 
 /* Yu Mincho ships with Windows, Hiragino with macOS/iOS. Stock Android has
    neither and falls back to Noto Sans CJK, which loses the ink feel — if that

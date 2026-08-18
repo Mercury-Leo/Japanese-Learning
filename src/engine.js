@@ -361,8 +361,25 @@ function buildNaAdj(word, reading, isNoun) {
   ];
 }
 
+/* One call builds ~30 form objects, each with its own segment array, and the
+   callers ask for the same word two or three times per render — the quiz derives
+   its form list and its question list from the same pool, then conjugates again
+   to label every miss. Keyed on content rather than on the object, because
+   changing a word's class mints a new object for the same word and has to miss.
+   Callers only read the result, never mutate it, so one array can be shared.
+   ponytail: unbounded map, sized by the number of distinct words a session
+   touches. Add an LRU if a deck ever gets big enough for that to matter. */
+const CONJ = new Map();
+
 function conjugate(w) {
   if (!w) return [];
+  const key = w.type + "|" + w.word + "|" + (w.reading || "");
+  let hit = CONJ.get(key);
+  if (!hit) CONJ.set(key, (hit = build(w)));
+  return hit;
+}
+
+function build(w) {
   const word = w.word.trim();
   const reading = (w.reading || w.word).trim();
   try {

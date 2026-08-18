@@ -80,13 +80,25 @@ rather than bundled with the app.
 src/engine.js   pure logic — conjugation, stacking, the kana IME, answer
                 matching. No React, no DOM, no network. This is the valuable
                 part and it is independently testable.
-src/App.jsx     the React shell: deck, study view, stack builder, quiz.
-src/theme.js    palette and type stacks. Colour encodes morpheme class.
+src/App.jsx     the shell: what is loaded, which view is up, and the deck.
+src/ui.jsx      the shared parts — Word, Ladder, Strip, Chip, ConfirmModal.
+                One file so a chip cannot drift into four.
+src/*View.jsx   one file per destination: Vocab, Charts, Progress, Settings.
+src/Quiz.jsx    the drill: setup, question, result.
+src/AddWord.jsx the lookup-and-enter panel. Owns its own draft.
+src/StackPanel.jsx, src/ExamplesPanel.jsx, src/DeckTools.jsx
+                the deck's satellite panels.
+src/theme.js    palette, type scale, spacing (S) and control padding (P).
+                Colour encodes morpheme class.
+src/app-css.js  the global sheet — pseudo-classes, media queries, keyframes.
+                Everything else is inline at its call site.
 src/storage.js  localStorage behind an async interface.
 src/speech.js   Web Speech audio with failure reporting.
 src/api.js      dictionary lookup, and the two optional network features.
 src/dict.json   JMdict, 26k common entries, built by npm run dict. Committed.
-test/           the regression suite.
+test/           the regression suite. Its "module wiring" group statically
+                checks every component file's import list, because a missing
+                import is a blank screen no engine test can see.
 ```
 
 ## Features
