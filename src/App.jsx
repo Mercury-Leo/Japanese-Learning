@@ -1606,7 +1606,13 @@ export default function App() {
         /* hover only where a pointer can actually hover — otherwise taps leave
            sticky hover states stranded on touch screens */
         @media (hover: hover) {
-          .kd-form-chip:hover { border-color: ${C.ink}; }
+          /* A chip's own border is always set inline at the call site, so the
+             only border this could ever reach was the divider a segment shares
+             with its neighbour — which lit up as a stray near-white line rather
+             than reading as hover. Tint the ground instead, the same panel-alt a
+             deck row uses, which is a different colour in each theme. The
+             selected chip keeps its inline background, which outranks this. */
+          .kd-seg > .kd-form-chip:hover { background: ${C.panelAlt}; }
           .kd-tile:hover { transform: translateY(-2px); }
           .kd-row:hover { background: ${C.panelAlt}; }
           .kd-del:hover { color: ${C.stem}; }
@@ -2000,7 +2006,7 @@ export default function App() {
                 </div>
                 <div style={{ paddingBottom: S[1] }}>
                   <div style={{ fontSize: T.base, color: C.ink }}>{selected.meaning || <span style={{ color: C.muted }}>no gloss</span>}</div>
-                  <div style={{ display: "flex", gap: S[1], marginTop: S[1] + 1, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: S[1], marginTop: S[3], flexWrap: "wrap" }}>
                     {classChoices.map((t) => (
                       <button key={t.id} className="kd-btn kd-form-chip" onClick={() => setType(selected.id, t.id)}
                         aria-pressed={selected.type === t.id}
