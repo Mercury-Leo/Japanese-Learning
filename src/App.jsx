@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Plus, Trash2, X, Search, Volume2, Undo2, Download, Upload, Settings as Cog } from "lucide-react";
+import { Plus, Trash2, X, Search, Undo2, Download, Upload, Settings as Cog } from "lucide-react";
 
 import { C, ROLE_COLOR, MINCHO, SANS, MONO, T, JP, RUBY, S, THEME_CSS, THEMES, applyTheme } from "./theme.js";
 import { storage, KEY, SKEY, GKEY, PKEY, readTheme, writeTheme } from "./storage.js";
 import { EMPTY, MEANING, record, mergeStats, mergeStored, ruleKey, byRule, wordAccuracy } from "./stats.js";
-import { SPEECH_OK, speak, useSpeechStatus, setAudioReporter } from "./speech.js";
+import { useSpeechStatus, setAudioReporter } from "./speech.js";
 import { lookupWord, fetchExamples, warmDict } from "./api.js";
 import {
   romaji, toKana, settleKana, conjugate, detectType, TYPES, typeLabel, GROUPS, GODAN,
@@ -14,6 +14,8 @@ import {
 import { DEFAULTS, mergeSettings, visibleForms, visibleMods, wordInScope, JLPT, SCRIPTS } from "./settings.js";
 import SettingsView from "./SettingsView.jsx";
 import ProgressView from "./ProgressView.jsx";
+import ChartsView from "./ChartsView.jsx";
+import Say from "./Say.jsx";
 
 /* ============================================================
    SCRIPT RENDERING — furigana / kanji / kana
@@ -72,24 +74,6 @@ function Ladder({ row, active }) {
         );
       })}
     </div>
-  );
-}
-
-/* ============================================================
-   AUDIO — Web Speech, no dependency. Reads the kana so the engine
-   never has to guess a kanji reading.
-   ============================================================ */
-/* Holds its footprint when disabled rather than unmounting — otherwise toggling
-   audio off in Settings reflows every row and heading that contains one. */
-function Say({ text, size = 13, color = C.muted, label = "Play", enabled = true }) {
-  if (!text) return null;
-  if (!enabled) return <span aria-hidden="true" style={{ display: "inline-block", width: size + 12, flexShrink: 0 }} />;
-  return (
-    <button className="kd-btn" title={label} aria-label={label}
-      onClick={(e) => { e.stopPropagation(); speak(text); }}
-      style={{ color: SPEECH_OK ? color : C.rule, padding: S[1] + 2, lineHeight: 0, flexShrink: 0 }}>
-      <Volume2 size={size} />
-    </button>
   );
 }
 
@@ -1743,7 +1727,7 @@ export default function App() {
 
           <div style={{ display: "flex", justifyContent: "center", marginTop: S[3] }}>
             <nav className="kd-seg" aria-label="Views">
-              {[["deck", "Deck"], ["vocab", "Vocab"], ["quiz", "Quiz"], ["progress", "Progress"]].map(([id, label]) => {
+              {[["deck", "Deck"], ["vocab", "Vocab"], ["quiz", "Quiz"], ["charts", "Charts"], ["progress", "Progress"]].map(([id, label]) => {
                 const on = view === id;
                 return (
                   <button key={id} className="kd-btn kd-form-chip" onClick={() => goto(id)}
@@ -1793,6 +1777,8 @@ export default function App() {
           onDelete={removeWord}
         />
       )}
+
+      {view === "charts" && <ChartsView audio={settings.show.audio} />}
 
       {view === "progress" && <ProgressView stats={stats} words={words} />}
 

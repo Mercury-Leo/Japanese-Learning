@@ -113,6 +113,11 @@ test/           the regression suite.
 - **Kana IME** in the answer field: type `itte`, get いって.
 - **Audio** via Web Speech, reading the kana.
 - **Export / import** the deck as JSON.
+- **Charts** — the closed sets you look up rather than drill, grouped into four
+  tabs: time, counting, asking, people. Twelve tables, and the reading that
+  breaks its own chart's pattern is marked in place rather than in a footnote —
+  ついたち, よじ, さんがい, おにいさん. Romaji is derived from the kana by the same
+  transliterator the deck uses, so a chart cannot drift from a card.
 - **Progress** — every answer is recorded per (word, form) and rolled up along
   the *grammar*: "ぬ・ぶ・む → んで, 41%" is a diagnosis a flashcard app cannot
   produce, because it needs to know those three verbs share one rule. Results
@@ -153,6 +158,11 @@ from 変える (ichidan) by sound, so it's one tap to correct.
 **Fonts are system-dependent.** Yu Mincho on Windows, Hiragino on macOS. Stock
 Android has neither and falls back to sans — self-host a subsetted Noto Serif JP
 if that matters.
+
+**Charts are reference, not drill.** The quiz runs off the deck, and nothing in
+Charts is in the deck — かようび is a table row, not a card. Drilling them needs a
+question type that conjugates nothing, which is a new path through the quiz
+rather than a new form on an existing one.
 
 **Progress is aggregate, not history.** Stats store totals per (word, form), so
 "accuracy ever" is available but "accuracy this month" is not. Trend lines would

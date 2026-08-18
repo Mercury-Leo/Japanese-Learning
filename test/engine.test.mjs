@@ -10,6 +10,7 @@ import {
 } from "../src/engine.js";
 import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope } from "../src/settings.js";
 import { tagsFromLookup, candidateWithTags, rankMatches } from "../src/api.js";
+import { CHARTS, GROUPS, cell, read as chartRomaji } from "../src/charts.js";
 import { EMPTY, MEANING, wordKey, record, statFor, ruleKey, byRule, wordAccuracy, totals, mergeStats, mergeStored } from "../src/stats.js";
 
 let pass = 0, fail = 0;
@@ -424,6 +425,36 @@ for (const [file, importRe] of modules) {
     // reference to the export `seg`. Exclude hyphens on both sides.
     if (new RegExp(`(?<![\\w-])${name}(?![\\w-])`).test(appCode))
       eq(imported.includes(name), true, `App.jsx references ${name} but does not import it from ${file}`);
+}
+
+/* ---------------- reference charts ---------------- */
+group("reference charts");
+/* Kana, the reading separator and the long mark, nothing else. A kanji left in a
+   reading slot renders as garbage romaji, and a matrix row one cell short shifts
+   every reading after it under the wrong column heading — the two mistakes a
+   table this size hides best. */
+const KANA_ONLY = /^[ぁ-んァ-ヺ・ー]+$/;
+eq(new Set(CHARTS.map((c) => c.title)).size, CHARTS.length, "chart titles are unique — they are React keys");
+eq(CHARTS.every((c) => GROUPS.includes(c.group)), true, "every chart names a subject the tab row will show");
+/* The view filters CHARTS by subject, so a group split across two stretches of
+   the array would reorder that tab's charts and strand the notes that say
+   "above" and "below". */
+eq(CHARTS.map((c) => c.group).filter((g, i, a) => g !== a[i - 1]).length, GROUPS.length,
+   "each subject's charts sit together in CHARTS");
+for (const c of CHARTS) {
+  eq(!!(c.title && c.jp && c.note), true, `${c.title || "(untitled)"} has a title, a JP label and a note`);
+  const keys = c.cols ? c.rows.map((r) => r.k) : c.rows.map((r) => r[0]);
+  eq(new Set(keys).size, keys.length, `${c.title} · row keys are unique`);
+  if (c.cols) for (const r of c.rows) eq(r.cells.length, c.cols.length, `${c.title} · row ${r.k} has one cell per column`);
+  else for (const r of c.rows) eq(r.length, 3, `${c.title} · row ${r[0]} is [kanji, reading, gloss]`);
+  const readings = c.cols
+    ? c.rows.flatMap((r) => r.cells.map((raw) => [r.k, raw]))
+    : c.rows.map((r) => [r[0], r[1]]);
+  for (const [label, raw] of readings) {
+    const { kana } = cell(raw);
+    eq(KANA_ONLY.test(kana), true, `${c.title} · ${label} · "${kana}" is kana only`);
+    eq(/[ぁ-んァ-ヺ]/.test(chartRomaji(kana)), false, `${c.title} · ${label} · "${kana}" transliterates fully`);
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
