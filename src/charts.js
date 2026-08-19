@@ -251,6 +251,45 @@ const FAMILY = {
   note: "Left column for your own family when talking to an outsider, right column for someone else's — and for addressing your own relatives face to face, which is why a child calls their father お父さん. The polite form is usually お〜さん, but the Sino-Japanese words take ご instead (ご両親, ご家族), 夫 and 妻 swap for different words entirely (ご主人, 奥さん), and 兄・姉 stretch their vowel on the way: あに → おにいさん, あね → おねえさん.",
 };
 
+/* The only charts here that hold transformations rather than words, and the one
+   place a verb's class stops being trivia: get it wrong and you produce 食べって.
+   Split in two because a single heading cannot say both "the ending decides
+   this" and "the ending cannot tell you".
+
+   The rule lives in the row label, not the note — a reader should not have to
+   diff 飲む against 飲んで to work out that む becomes んで. It cannot be a column
+   instead: every cell in a matrix is a reading, and "む → んで" is not kana. The
+   音便 names match the ones the conjugation view prints, so a chart and a card
+   cannot disagree about 書いて. */
+const TE_GODAN = {
+  group: "Verbs", title: "The て form, ending by ending", jp: "音便",
+  cols: ["dictionary form", "て form"],
+  rows: [
+    { k: "〜う → 〜って", gloss: "buy", cells: ["買う|かう", "買って|かって"] },
+    { k: "〜つ → 〜って", gloss: "wait", cells: ["待つ|まつ", "待って|まって"] },
+    { k: "〜る → 〜って", gloss: "take", cells: ["取る|とる", "取って|とって"] },
+    { k: "〜ぬ → 〜んで", gloss: "die", cells: ["死ぬ|しぬ", "死んで|しんで"] },
+    { k: "〜ぶ → 〜んで", gloss: "play", cells: ["遊ぶ|あそぶ", "遊んで|あそんで"] },
+    { k: "〜む → 〜んで", gloss: "drink", cells: ["飲む|のむ", "飲んで|のんで"] },
+    { k: "〜く → 〜いて", gloss: "write", cells: ["書く|かく", "書いて|かいて"] },
+    { k: "〜ぐ → 〜いで", gloss: "swim", cells: ["泳ぐ|およぐ", "泳いで|およいで"] },
+    { k: "〜す → 〜して", gloss: "speak", cells: ["話す|はなす", "話して|はなして"] },
+  ],
+  note: "Every verb's dictionary form ends in one of nine kana, all from the う row — う, つ, る, ぬ, ぶ, む, く, ぐ, す — which is why this chart has nine rows and no more. Godan (う-verb) only, and only that last kana changes; everything in front of it is untouched. The three sound changes have names the conjugation view also uses: って is 促音便, んで is 撥音便, いて and いで are イ音便. す is not one of them — 話して is simply the い-stem plus て, no change at all. Two things fall out free: swap the final て for た and you have the past tense (書いて → 書いた, 飲んで → 飲んだ), and the only verb that ignores its own ending is 行く, in the chart below.",
+};
+
+const TE_OTHER = {
+  group: "Verbs", title: "て forms the ending cannot predict", jp: "一段・不規則",
+  cols: ["dictionary form", "て form"],
+  rows: [
+    { k: "〜る → 〜て", gloss: "ichidan · drop る", cells: ["食べる|たべる", "食べて|たべて"] },
+    { k: "する → して", gloss: "do", cells: ["する", "*して"] },
+    { k: "来る → 来て", gloss: "come", cells: ["来る|くる", "*来て|きて"] },
+    { k: "行く → 行って", gloss: "go", cells: ["行く|いく", "*行って|いって"] },
+  ],
+  note: "An ichidan verb has no sound change to find: drop る, add て. 食べる → 食べて, 見る → 見て, never 食べって. The trap is that godan verbs end in る too and nothing in the spelling separates them — 帰る, 走る, 入る and 切る all end in える or いる and are every one of them godan, so 帰って, not 帰えて. The class is learned with the word, not read off the ending. する and 来る drop る like an ichidan verb but shift their stem on the way, to し and き. 行く is the single verb in the language that lies about its ending: the く rule above predicts 行いて, the real form is 行って.",
+};
+
 /* Grouped by subject, and the Charts view derives its tab row from this order —
    so a chart moves tabs by editing its `group`, and the tabs stay in the order
    their first chart appears. Notes that say "above" or "below" only ever point
@@ -260,6 +299,7 @@ export const CHARTS = [
   DIGITS, BIG, COUNTERS,
   KOSOADO, QWORDS,
   FAMILY,
+  TE_GODAN, TE_OTHER,
 ];
 
 export const GROUPS = [...new Set(CHARTS.map((c) => c.group))];
