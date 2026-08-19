@@ -22,6 +22,7 @@ import SettingsView from "./SettingsView.jsx";
 import ProgressView from "./ProgressView.jsx";
 import ChartsView from "./ChartsView.jsx";
 import Say from "./Say.jsx";
+import Install from "./Install.jsx";
 
 export default function App() {
   const [words, setWords] = useState([]);
@@ -614,6 +615,8 @@ export default function App() {
           </div>
         </div>
       )}
+
+      <Install offset={!!audioNote} />
 
       {/* The colour legend used to live here. It explains the app's core
           mechanic, so it now sits beside the colours it describes, on the strip. */}
