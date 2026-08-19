@@ -1,0 +1,47 @@
+# Builds dist/ and publishes it to GitHub Pages. vite.config.js sets base: "./",
+# so the same artifact works at a domain root or under the /Japanese-Learning/
+# project-site subpath without a rebuild.
+name: Deploy to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# deploy-pages needs id-token to mint its OIDC deployment token.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A superseded build is never worth finishing, but let a running deploy land.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # The conjugation engine is the whole app; a red suite must not reach the phone.
+      - run: npm test
+      - run: npm run build
+      # enablement: true creates the Pages site on the first run, so this works
+      # without anyone opening repo settings.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
