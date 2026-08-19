@@ -1,6 +1,13 @@
 # Builds dist/ and publishes it to GitHub Pages. vite.config.js sets base: "./",
 # so the same artifact works at a domain root or under the /Japanese-Learning/
-# project-site subpath without a rebuild.
+# project-site subpath without a rebuild — which is also why there is no
+# actions/configure-pages step here: its only job is to hand the build a base
+# path this app does not need.
+#
+# Pages itself must be switched on once by hand, under Settings → Pages → Source
+# → GitHub Actions. The workflow token cannot do it: creating a Pages site is an
+# admin-scoped endpoint, and asking for it returns "Resource not accessible by
+# integration".
 name: Deploy to Pages
 
 on:
@@ -26,8 +33,8 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -35,13 +42,8 @@ jobs:
       # The conjugation engine is the whole app; a red suite must not reach the phone.
       - run: npm test
       - run: npm run build
-      # enablement: true creates the Pages site on the first run, so this works
-      # without anyone opening repo settings.
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
