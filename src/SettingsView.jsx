@@ -18,20 +18,28 @@ function Section({ label, onAll, onNone, children }) {
   );
 }
 
-/* The chip titles only exist for a mouse. This is the same text where a phone can
-   read it: one row per chip, in chip order. */
-function Legend({ rows }) {
+/* One option per line: the toggle itself, with what it means beside it. An
+   explanation runs one line or six depending on the form, so the rows cannot
+   share a height — the rule between them is what keeps the column readable
+   instead of looking like drift. Same list idiom as the vocabulary rows. */
+function Options({ items, on, onToggle }) {
   return (
-    <dl style={{ flexBasis: "100%", margin: S[2] + "px 0 0", fontSize: T.fine, color: C.muted, lineHeight: 1.5 }}>
-      {rows.map((r) => (
-        <div key={r.id} style={{ display: "flex", gap: S[2], marginTop: S[1] }}>
-          <dt style={{ flex: "0 0 104px", color: C.ink }}>
-            {r.label} <span style={{ fontFamily: MINCHO }}>{r.jp}</span>
-          </dt>
-          <dd style={{ margin: 0, flex: 1 }}>{r.hint}</dd>
+    <div style={{ width: "100%", borderTop: "1px solid " + C.ruleSoft }}>
+      {items.map((it) => (
+        <div key={it.id} style={{
+          display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: S[2],
+          padding: S[2] + "px 0", borderBottom: "1px solid " + C.ruleSoft,
+        }}>
+          <Chip on={on(it.id)} onClick={() => onToggle(it.id)} style={{ flex: "0 0 170px" }}>
+            {it.label}
+            <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{it.jp}</span>
+          </Chip>
+          {/* No offset: the explanation's first line starts level with the chip's
+              top edge, so the two columns begin on the same line. */}
+          <span style={{ flex: "1 1 150px", fontSize: T.fine, color: C.muted, lineHeight: 1.5 }}>{it.hint}</span>
         </div>
       ))}
-    </dl>
+    </div>
   );
 }
 
@@ -100,14 +108,8 @@ export default function SettingsView({ settings, onChange, wordCount, formCount,
           <Section key={grp} label={"Forms · " + grp}
             onAll={() => set({ formIds: [...new Set([...settings.formIds, ...ids])] })}
             onNone={() => set({ formIds: settings.formIds.filter((id) => !ids.includes(id)) })}>
-            {items.map((f) => (
-              <Chip key={f.id} on={settings.formIds.includes(f.id)} onClick={() => toggle("formIds", f.id)}
-                title={FORM_HINT[f.id]}>
-                {f.label}
-                <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{f.jp}</span>
-              </Chip>
-            ))}
-            <Legend rows={items.map((f) => ({ ...f, hint: FORM_HINT[f.id] }))} />
+            <Options items={items.map((f) => ({ ...f, hint: FORM_HINT[f.id] }))}
+              on={(id) => settings.formIds.includes(id)} onToggle={(id) => toggle("formIds", id)} />
           </Section>
         );
       })}
@@ -115,25 +117,14 @@ export default function SettingsView({ settings, onChange, wordCount, formCount,
       <Section label="Stack modifiers"
         onAll={() => set({ modIds: MODS.map((m) => m.id) })}
         onNone={() => set({ modIds: [] })}>
-        {MODS.map((m) => (
-          <Chip key={m.id} on={settings.modIds.includes(m.id)} onClick={() => toggle("modIds", m.id)} title={m.hint}>
-            {m.label}
-            <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{m.jp}</span>
-          </Chip>
-        ))}
-        <Legend rows={MODS} />
+        <Options items={MODS} on={(id) => settings.modIds.includes(id)} onToggle={(id) => toggle("modIds", id)} />
       </Section>
 
       <Section label="Word classes"
         onAll={() => set({ types: TYPES.map((t) => t.id) })}
         onNone={() => set({ types: [] })}>
-        {TYPES.map((t) => (
-          <Chip key={t.id} on={settings.types.includes(t.id)} onClick={() => toggle("types", t.id)} title={t.hint}>
-            {t.label}
-            <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{typeLabel(t.id)}</span>
-          </Chip>
-        ))}
-        <Legend rows={TYPES.map((t) => ({ ...t, jp: typeLabel(t.id) }))} />
+        <Options items={TYPES.map((t) => ({ ...t, jp: typeLabel(t.id) }))}
+          on={(id) => settings.types.includes(id)} onToggle={(id) => toggle("types", id)} />
       </Section>
 
       <Section label="Word scope">
