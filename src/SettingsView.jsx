@@ -1,5 +1,5 @@
 import { C, MINCHO, MONO, T, S, P, THEMES } from "./theme.js";
-import { TYPES, MODS, GROUPS, typeLabel } from "./engine.js";
+import { TYPES, MODS, GROUPS, typeLabel, FORM_HINT } from "./engine.js";
 import { allForms, PRESET_NAMES, applyPreset, contentOf, isContentPatch, sameContent, JLPT, SCRIPTS } from "./settings.js";
 import { getKey, setKey } from "./api.js";
 import { Chip } from "./ui.jsx";
@@ -15,6 +15,23 @@ function Section({ label, onAll, onNone, children }) {
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: S[1] }}>{children}</div>
     </div>
+  );
+}
+
+/* The chip titles only exist for a mouse. This is the same text where a phone can
+   read it: one row per chip, in chip order. */
+function Legend({ rows }) {
+  return (
+    <dl style={{ flexBasis: "100%", margin: S[2] + "px 0 0", fontSize: T.fine, color: C.muted, lineHeight: 1.5 }}>
+      {rows.map((r) => (
+        <div key={r.id} style={{ display: "flex", gap: S[2], marginTop: S[1] }}>
+          <dt style={{ flex: "0 0 104px", color: C.ink }}>
+            {r.label} <span style={{ fontFamily: MINCHO }}>{r.jp}</span>
+          </dt>
+          <dd style={{ margin: 0, flex: 1 }}>{r.hint}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -84,11 +101,13 @@ export default function SettingsView({ settings, onChange, wordCount, formCount,
             onAll={() => set({ formIds: [...new Set([...settings.formIds, ...ids])] })}
             onNone={() => set({ formIds: settings.formIds.filter((id) => !ids.includes(id)) })}>
             {items.map((f) => (
-              <Chip key={f.id} on={settings.formIds.includes(f.id)} onClick={() => toggle("formIds", f.id)}>
+              <Chip key={f.id} on={settings.formIds.includes(f.id)} onClick={() => toggle("formIds", f.id)}
+                title={FORM_HINT[f.id]}>
                 {f.label}
                 <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{f.jp}</span>
               </Chip>
             ))}
+            <Legend rows={items.map((f) => ({ ...f, hint: FORM_HINT[f.id] }))} />
           </Section>
         );
       })}
@@ -97,11 +116,12 @@ export default function SettingsView({ settings, onChange, wordCount, formCount,
         onAll={() => set({ modIds: MODS.map((m) => m.id) })}
         onNone={() => set({ modIds: [] })}>
         {MODS.map((m) => (
-          <Chip key={m.id} on={settings.modIds.includes(m.id)} onClick={() => toggle("modIds", m.id)}>
+          <Chip key={m.id} on={settings.modIds.includes(m.id)} onClick={() => toggle("modIds", m.id)} title={m.hint}>
             {m.label}
             <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{m.jp}</span>
           </Chip>
         ))}
+        <Legend rows={MODS} />
       </Section>
 
       <Section label="Word classes"
@@ -113,17 +133,7 @@ export default function SettingsView({ settings, onChange, wordCount, formCount,
             <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{typeLabel(t.id)}</span>
           </Chip>
         ))}
-        {/* The chip titles only exist for a mouse; this is the same text where a phone can read it. */}
-        <dl style={{ flexBasis: "100%", margin: S[2] + "px 0 0", fontSize: T.fine, color: C.muted, lineHeight: 1.5 }}>
-          {TYPES.map((t) => (
-            <div key={t.id} style={{ display: "flex", gap: S[2], marginTop: S[1] }}>
-              <dt style={{ flex: "0 0 104px", color: C.ink }}>
-                {t.label} <span style={{ fontFamily: MINCHO }}>{typeLabel(t.id)}</span>
-              </dt>
-              <dd style={{ margin: 0, flex: 1 }}>{t.hint}</dd>
-            </div>
-          ))}
-        </dl>
+        <Legend rows={TYPES.map((t) => ({ ...t, jp: typeLabel(t.id) }))} />
       </Section>
 
       <Section label="Word scope">

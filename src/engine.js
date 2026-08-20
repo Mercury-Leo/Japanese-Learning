@@ -178,6 +178,46 @@ function teRule(word) {
 
 const GROUPS = ["Plain", "Polite", "Connective", "Derived"];
 
+/* One line per form id, for the legend in settings and the tooltip on every form
+   chip. Keyed by id, not by class: 飲む and 高い share ta, te, ba and the rest,
+   so a hint has to describe the form, not one word class's version of it. */
+const FORM_HINT = {
+  dict: "Plain non-past — the form you look up. Present or future for a verb, the bare word for an adjective.",
+  nai: "Plain negative, non-past — 飲まない, 高くない.",
+  ta: "Plain past — 飲んだ, 高かった.",
+  nakatta: "Plain past negative — 飲まなかった, 高くなかった.",
+  vol: "Let's, or I think I will — a suggestion or an intention, plain register.",
+  imp: "Blunt command. Rare in conversation; you meet it on signs, in orders and in quoted speech.",
+  da: "Plain assertion — X is Y. Routinely dropped in casual speech.",
+  janai: "Plain negative of だ — is not.",
+  datta: "Plain past of だ — was.",
+
+  masu: "Polite non-past — the default register with anyone you are not close to.",
+  masen: "Polite negative.",
+  mashita: "Polite past.",
+  masendeshita: "Polite past negative.",
+  mashou: "Polite let's — an invitation or an offer.",
+  desu: "Polite non-past with です. Adjectives and nouns take です where verbs take ます.",
+  kunaidesu: "Polite negative of an い-adjective — 高くないです.",
+  kattadesu: "Polite past of an い-adjective — 高かったです.",
+  jaarimasen: "Polite negative of だ — じゃありません.",
+  deshita: "Polite past of だ — でした.",
+
+  te: "The joining form: hands off to the next clause, and carries ください, いる and much else.",
+  teiru: "In progress now, or the state the action left behind — 知っている is knows, not is knowing.",
+  teimasu: "Polite ている.",
+  ba: "If — the provisional conditional: whenever the condition holds, the rest follows.",
+  nara: "If it is the case that — picks up what was just said and conditions on it.",
+  adv: "Adverb form: describes a verb instead of a noun — 早い fast → 早く走る run fast.",
+  attr: "The form that goes directly before a noun — 静かな部屋. This な is what names the class.",
+
+  pot: "Can do it. The thing done usually takes が, not を.",
+  pass: "It was done to the subject — often with the sense that it happened to them, unwanted.",
+  caus: "Make someone do it, or let them.",
+  tai: "Want to do it. The result inflects as an い-adjective: たくない, たかった.",
+  sou: "Looks like it, judging by appearance — 高そう.",
+};
+
 function seg(text, kana, key, extra) {
   const g = G[key] || G.root;
   return { text, kana: kana ?? text, role: g.role, gloss: g.gloss, title: g.title, body: extra ? g.body + " " + extra : g.body };
@@ -789,6 +829,7 @@ export {
   TYPES,
   typeLabel,
   GROUPS,
+  FORM_HINT,
   GODAN,
   MODS,
   stems,

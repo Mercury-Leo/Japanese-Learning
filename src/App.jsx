@@ -9,7 +9,7 @@ import { storage, KEY, SKEY, GKEY, PKEY, readTheme, writeTheme } from "./storage
 import { EMPTY, record, mergeStats, mergeStored } from "./stats.js";
 import { useSpeechStatus, setAudioReporter } from "./speech.js";
 import { warmDict } from "./api.js";
-import { romaji, conjugate, TYPES, typeLabel, GROUPS, SEED } from "./engine.js";
+import { romaji, conjugate, TYPES, typeLabel, GROUPS, SEED, FORM_HINT } from "./engine.js";
 import { DEFAULTS, mergeSettings, visibleForms, wordInScope, SCRIPTS } from "./settings.js";
 import { Word, Ladder, Strip, Chip, ConfirmModal } from "./ui.jsx";
 import AddWord from "./AddWord.jsx";
@@ -571,7 +571,7 @@ export default function App() {
                           const on = f.id === formId;
                           return (
                             <button key={f.id} className="kd-btn kd-form-chip" onClick={() => { setFormId(f.id); setSegIdx(null); }}
-                              aria-pressed={on}
+                              aria-pressed={on} title={FORM_HINT[f.id]}
                               style={{
                                 border: "1px solid " + (on ? C.ink : C.rule),
                                 background: on ? C.ink : C.panel,
