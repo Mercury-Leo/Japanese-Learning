@@ -42,6 +42,16 @@ export const APP_CSS = `
   }
   .kd-del { color: ${C.rule}; transition: color .15s; }
 
+  /* A row's actions are buttons inside a clickable row, so a press on one lit
+     the whole row and read as a press on the row itself. The row hands its
+     tint to whichever button the pointer is on and keeps it for its own
+     presses; the native tap flash goes, since :active now covers both. */
+  .kd-row { -webkit-tap-highlight-color: transparent; }
+  .kd-row .kd-btn { transition: background .12s; }
+  .kd-row:active { background: ${C.panelAlt}; }
+  .kd-row .kd-btn:active { background: ${C.panelAlt}; }
+  .kd-row:has(.kd-btn:active) { background: transparent; }
+
   /* ---- two tiers. The morpheme strip is the point of the app; before
      this everything shared one treatment and it had to compete with four
      lookalikes stacked under it. ---- */
@@ -89,6 +99,8 @@ export const APP_CSS = `
     .kd-seg > .kd-form-chip:hover { background: ${C.panelAlt}; }
     .kd-tile:hover { transform: translateY(-2px); }
     .kd-row:hover { background: ${C.panelAlt}; }
+    .kd-row .kd-btn:hover { background: ${C.panelAlt}; }
+    .kd-row:has(.kd-btn:hover) { background: transparent; }
     .kd-del:hover { color: ${C.stem}; }
   }
 

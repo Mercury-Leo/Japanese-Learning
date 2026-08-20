@@ -159,7 +159,7 @@ function VocabView({ words, scopedCount, script, settings, stats, onOpen, onAdd,
               </button>
               <button className="kd-btn kd-del" title={"Delete " + w.word}
                 onClick={(e) => { e.stopPropagation(); setConfirm(w.id); }}
-                style={{ padding: S[2], margin: -2 }}>
+                style={{ padding: S[1] + 2, margin: -2, lineHeight: 0 }}>
                 <Trash2 size={13} />
               </button>
             </div>
