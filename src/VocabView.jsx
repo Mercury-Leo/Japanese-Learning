@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Trash2, Search } from "lucide-react";
+import { Plus, Trash2, Search, Share2, Check } from "lucide-react";
 
 import { C, MINCHO, SANS, MONO, T, JP, RUBY, S, P } from "./theme.js";
 import { romaji, typeLabel } from "./engine.js";
@@ -27,6 +27,23 @@ function VocabView({ words, scopedCount, script, settings, stats, onOpen, onAdd,
   const [grp, setGrp] = useState("all");
   const [q, setQ] = useState("");
   const [confirm, setConfirm] = useState(null);
+  const [shared, setShared] = useState(null);
+
+  /* Hand the word to whatever the phone already has — Messages, LINE, mail.
+     Desktops without a share sheet fall back to the clipboard, which is why
+     the button reports back at all. */
+  async function share(e, w) {
+    e.stopPropagation();
+    const text = w.word + (w.reading && w.reading !== w.word ? "（" + w.reading + "）" : "") + (w.meaning ? " — " + w.meaning : "");
+    try {
+      if (navigator.share) await navigator.share({ title: w.word, text });
+      else {
+        await navigator.clipboard.writeText(text);
+        setShared(w.id);
+        setTimeout(() => setShared(null), 1600);
+      }
+    } catch { /* sheet dismissed, or the clipboard was refused — nothing to say */ }
+  }
 
   const need = q.trim().toLowerCase();
   const group = VOCAB_GROUPS.find((x) => x.id === grp) || VOCAB_GROUPS[0];
@@ -135,6 +152,11 @@ function VocabView({ words, scopedCount, script, settings, stats, onOpen, onAdd,
                 );
               })()}
               <Say text={w.reading} label={"Play " + w.word} enabled={settings.show.audio} />
+              <button className="kd-btn" title={shared === w.id ? "Copied" : "Share " + w.word} aria-label={"Share " + w.word}
+                onClick={(e) => share(e, w)}
+                style={{ color: shared === w.id ? C.aux : C.muted, padding: S[1] + 2, lineHeight: 0, flexShrink: 0 }}>
+                {shared === w.id ? <Check size={13} /> : <Share2 size={13} />}
+              </button>
               <button className="kd-btn kd-del" title={"Delete " + w.word}
                 onClick={(e) => { e.stopPropagation(); setConfirm(w.id); }}
                 style={{ padding: S[2], margin: -2 }}>
