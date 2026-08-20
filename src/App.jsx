@@ -444,28 +444,31 @@ export default function App() {
           ) : (
             <>
               {/* entry header */}
-              <div style={{ display: "flex", alignItems: "flex-end", gap: S[4], flexWrap: "wrap", marginBottom: S[1] }}>
-                <div>
-                  {settings.show.romaji && (
-                    <div className="kd-micro">{romaji(selected.reading).toUpperCase()}</div>
-                  )}
+              {/* Gloss on the word's own baseline, classes on a line of their own
+                  beneath. Stacked in a right-hand column the gloss rode up level
+                  with the romaji, reading as a caption for nothing. */}
+              <div style={{ marginBottom: S[1] }}>
+                {settings.show.romaji && (
+                  <div className="kd-micro">{romaji(selected.reading).toUpperCase()}</div>
+                )}
+                <div style={{ display: "flex", alignItems: "flex-end", gap: S[3], flexWrap: "wrap" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: S[1] }}>
                     <div style={{ fontFamily: MINCHO, fontSize: JP.lg }}>
                       <Word text={selected.word} kana={selected.reading} mode={script} ruby={RUBY.lg} />
                     </div>
                     <Say text={selected.reading} size={15} label="Play the word" enabled={settings.show.audio} />
                   </div>
-                </div>
-                <div style={{ paddingBottom: S[1] }}>
-                  <div style={{ fontSize: T.base, color: C.ink }}>{selected.meaning || <span style={{ color: C.muted }}>no gloss</span>}</div>
-                  <div style={{ display: "flex", gap: S[1], marginTop: S[3], flexWrap: "wrap" }}>
-                    {classChoices.map((t) => (
-                      <Chip key={t.id} on={selected.type === t.id} onClick={() => setType(selected.id, t.id)}
-                        style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".08em" }}>
-                        {t.label.toUpperCase()}
-                      </Chip>
-                    ))}
+                  <div style={{ fontSize: T.base, color: C.ink, paddingBottom: S[2] }}>
+                    {selected.meaning || <span style={{ color: C.muted }}>no gloss</span>}
                   </div>
+                </div>
+                <div style={{ display: "flex", gap: S[1], marginTop: S[2], flexWrap: "wrap" }}>
+                  {classChoices.map((t) => (
+                    <Chip key={t.id} on={selected.type === t.id} onClick={() => setType(selected.id, t.id)}
+                      style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".08em" }}>
+                      {t.label.toUpperCase()}
+                    </Chip>
+                  ))}
                 </div>
               </div>
 
