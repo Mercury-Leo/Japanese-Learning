@@ -108,11 +108,22 @@ export default function SettingsView({ settings, onChange, wordCount, formCount,
         onAll={() => set({ types: TYPES.map((t) => t.id) })}
         onNone={() => set({ types: [] })}>
         {TYPES.map((t) => (
-          <Chip key={t.id} on={settings.types.includes(t.id)} onClick={() => toggle("types", t.id)}>
+          <Chip key={t.id} on={settings.types.includes(t.id)} onClick={() => toggle("types", t.id)} title={t.hint}>
             {t.label}
             <span style={{ fontFamily: MONO, fontSize: T.micro, marginLeft: S[1], opacity: .7 }}>{typeLabel(t.id)}</span>
           </Chip>
         ))}
+        {/* The chip titles only exist for a mouse; this is the same text where a phone can read it. */}
+        <dl style={{ flexBasis: "100%", margin: S[2] + "px 0 0", fontSize: T.fine, color: C.muted, lineHeight: 1.5 }}>
+          {TYPES.map((t) => (
+            <div key={t.id} style={{ display: "flex", gap: S[2], marginTop: S[1] }}>
+              <dt style={{ flex: "0 0 104px", color: C.ink }}>
+                {t.label} <span style={{ fontFamily: MINCHO }}>{typeLabel(t.id)}</span>
+              </dt>
+              <dd style={{ margin: 0, flex: 1 }}>{t.hint}</dd>
+            </div>
+          ))}
+        </dl>
       </Section>
 
       <Section label="Word scope">

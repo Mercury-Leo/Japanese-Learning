@@ -138,7 +138,7 @@ export default function AddWord({ onAdd }) {
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: S[1] }}>
           {TYPES.map((t) => (
-            <Chip key={t.id} on={draft.type === t.id} ink
+            <Chip key={t.id} on={draft.type === t.id} ink title={t.hint}
               onClick={() => setDraft((d) => ({ ...d, type: t.id, typeTouched: true }))}>{t.label}</Chip>
           ))}
         </div>

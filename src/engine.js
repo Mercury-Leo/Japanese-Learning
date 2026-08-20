@@ -422,14 +422,16 @@ function detectType(word, reading) {
   return "na-adj";
 }
 
+/* hint is the one-line legend shown in settings and hovered on every class chip:
+   what the class actually means, not just what it is called. */
 const TYPES = [
-  { id: "godan", label: "Godan", jp: "五段" },
-  { id: "ichidan", label: "Ichidan", jp: "一段" },
-  { id: "suru", label: "する verb", jp: "する" },
-  { id: "kuru", label: "来る", jp: "来る" },
-  { id: "i-adj", label: "い-adjective", jp: "い形" },
-  { id: "na-adj", label: "な-adjective", jp: "な形" },
-  { id: "noun", label: "Noun", jp: "名詞" },
+  { id: "godan", label: "Godan", jp: "五段", hint: "Five-row verb: the last kana walks all five vowels — 飲ま・飲み・飲む・飲め・飲も — so the ending changes shape per form. Ends in う, く, ぐ, す, つ, ぬ, ぶ, む or る." },
+  { id: "ichidan", label: "Ichidan", jp: "一段", hint: "One-row verb: the stem never moves. Drop る, add the ending — 食べる → 食べます, 食べない. Always ends in いる or える, though many godan verbs do too." },
+  { id: "suru", label: "する verb", jp: "する", hint: "する and every noun that takes it — 勉強する. Irregular: the stem swaps between し, さ and せ." },
+  { id: "kuru", label: "来る", jp: "来る", hint: "来る alone, the other irregular verb. Its reading changes with the form: こない, きます, くる." },
+  { id: "i-adj", label: "い-adjective", jp: "い形", hint: "Adjective ending in い that conjugates on its own, like a verb — 高い → 高くない, 高かった. No だ." },
+  { id: "na-adj", label: "な-adjective", jp: "な形", hint: "Adjective that needs な before a noun — 静かな部屋 — and conjugates with だ/です, not by itself." },
+  { id: "noun", label: "Noun", jp: "名詞", hint: "Plain noun. Nothing conjugates on the word itself; だ/です carries the tense and the negative." },
 ];
 const typeLabel = (id) => TYPES.find((t) => t.id === id)?.jp ?? "";
 

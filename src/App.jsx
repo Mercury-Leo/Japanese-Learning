@@ -464,7 +464,7 @@ export default function App() {
                 </div>
                 <div style={{ display: "flex", gap: S[1], marginTop: S[2], flexWrap: "wrap" }}>
                   {classChoices.map((t) => (
-                    <Chip key={t.id} on={selected.type === t.id} onClick={() => setType(selected.id, t.id)}
+                    <Chip key={t.id} on={selected.type === t.id} onClick={() => setType(selected.id, t.id)} title={t.hint}
                       style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".08em" }}>
                       {t.label.toUpperCase()}
                     </Chip>
