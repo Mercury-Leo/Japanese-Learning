@@ -266,6 +266,79 @@ eq(rankMatches(ROWS, "行く")[0].trans, "intrans", "transitivity survives the t
 eq("transitivity" in rankMatches(ROWS, "行く")[0], false, "the raw wire field never reaches the deck");
 eq(rankMatches(ROWS, "図書館")[0].common, true, "the common subset is flagged common");
 eq(rankMatches(ROWS, "いく").length <= 3, true, "at most three candidates");
+eq(rankMatches(ROWS, "いく")[0].sure, true, "an exact hit is one the dictionary stands behind");
+eq(rankMatches(ROWS, "いき")[0].sure, false, "a prefix hit is flagged as the guess it is");
+
+/* A learner types the form they heard, not the form JMdict lists. Every case below
+   returned nothing (ます) or the wrong entry (て) before the query was folded back
+   to a dictionary form. */
+const CONJ_ROWS = [
+  ["行く", "いく", "to go", "godan", "intrans"],
+  ["行う", "おこなう", "to perform", "godan", "trans"],
+  ["買う", "かう", "to buy", "godan", "trans"],
+  ["書く", "かく", "to write", "godan", "trans"],
+  ["待つ", "まつ", "to wait", "godan", "intrans"],
+  ["話す", "はなす", "to speak", "godan", "trans"],
+  ["飲む", "のむ", "to drink", "godan", "trans"],
+  ["食べる", "たべる", "to eat", "ichidan", "trans"],
+  ["勉強する", "べんきょうする", "to study", "suru", "trans"],
+  ["来る", "くる", "to come", "kuru", "intrans"],
+  ["高い", "たかい", "expensive; tall", "i-adj", ""],
+  ["静か", "しずか", "quiet; silent", "na-adj", ""],
+  ["図書館", "としょかん", "library", "noun", ""],
+];
+const cj = (q) => rankMatches(CONJ_ROWS, q).map((c) => c.word);
+const folds = (q, want) => eq(cj(q).includes(want), true, `${q} folds to ${want} — got [${cj(q)}]`);
+
+folds("食べます", "食べる");
+folds("たべます", "食べる");
+folds("tabemasu", "食べる");
+folds("飲みます", "飲む");
+folds("のみます", "飲む");
+folds("待ちます", "待つ");
+folds("話します", "話す");
+folds("買います", "買う");
+folds("勉強します", "勉強する");
+folds("きます", "来る");
+folds("飲みませんでした", "飲む");
+folds("飲みましょう", "飲む");
+
+folds("食べて", "食べる");
+folds("飲んで", "飲む");
+folds("nonde", "飲む");
+folds("書いて", "書く");
+folds("話して", "話す");
+folds("待って", "待つ");
+folds("勉強して", "勉強する");
+folds("飲んだ", "飲む");
+folds("食べた", "食べる");
+
+folds("飲まない", "飲む");
+folds("食べない", "食べる");
+folds("買わない", "買う");
+folds("こない", "来る");
+folds("高くて", "高い");
+folds("高かった", "高い");
+folds("高くない", "高い");
+
+// 行く is the one verb whose て-form ignores its ending, so って must reach く too.
+folds("行って", "行く");
+folds("いって", "行く");
+// ...but only from that stem. A blanket って → く would answer 買って with 書く.
+eq(cj("買って").includes("書く"), false, "って does not fold to く off any other stem");
+folds("買って", "買う");
+// 行って really is both verbs written down — showing both is the honest answer.
+eq(cj("行って").includes("行う"), true, "行って is genuinely ambiguous, and says so");
+// The dictionary is the filter: 食べむ and 行つ get generated and then find nothing.
+eq(cj("食べます").includes("飲む"), false, "an over-generous guess dies on lookup");
+// です carries the politeness for the classes that cannot conjugate for it.
+folds("高いです", "高い");
+folds("静かです", "静か");
+folds("静かでした", "静か");
+folds("図書館です", "図書館");
+
+// A form still loses to a word actually spelled that way.
+eq(cj("いく")[0], "行く", "an exact hit still outranks a deconjugated one");
 
 // The committed artifact, not just the ranking over it: a bad part-of-speech map
 // in build-dict.mjs would silently mistype every entry, and nothing else would notice.

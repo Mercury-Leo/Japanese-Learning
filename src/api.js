@@ -1,4 +1,4 @@
-import { TYPES, toKana, settleKana } from "./engine.js";
+import { TYPES, toKana, settleKana, GODAN } from "./engine.js";
 
 /* In the Claude artifact these calls needed no credentials. Outside it they do.
    The key is entered in Settings and lives in this browser's localStorage, so it
@@ -98,7 +98,8 @@ const toCandidate = (r) => ({
   common: true,
 });
 
-/** Japanese in, candidates out: the written form, then the reading, then a prefix.
+/** Japanese in, candidates out: the written form, then the reading, then the
+ *  dictionary form a conjugated query came from, then a prefix.
  *  Romaji folds in by running the query through the same kana IME the quiz uses,
  *  so `iku`, `いく` and `行く` all land on 行く.
  *
@@ -113,6 +114,63 @@ const toCandidate = (r) => ({
  *  reachable from the test suite without loading 26k entries. */
 const conjugable = (r) => (r[3] === "noun" ? 0 : 1);
 
+/* ---------- folding a conjugated query back to the dictionary form ---------- */
+/* A learner types the form they heard, and the dictionary holds dictionary forms
+   only: `tabemasu` used to match nothing at all, and `itte` matched 一手. Peel a
+   known ending off and hand back every stem it could have come from — ます sits on
+   the い-stem, so みます → む, while って could be う, つ or る.
+
+   The guesses are deliberately over-generous and unranked, because the dictionary
+   is the filter: 食べむ and 行つ are both generated and both die on lookup. That is
+   also why there is no ambiguity to resolve here — いって yields 言う and 行く, and
+   both of them are real answers.
+
+   The rows come from GODAN rather than a second table, so the vowel shifts and the
+   three 音便 can never drift out of step with the forms the engine builds. */
+const POLITE = ["ませんでした", "ましょう", "ませんか", "ません", "ました", "まして", "ます"];
+const NEGATIVE = ["なかった", "なくて", "ない"];
+const ADJ = ["くありません", "くなかった", "かったです", "かった", "くない", "くて", "く"];
+/* です is the ます of the noun and な-adjective classes: the politeness sits in the
+   copula because the word itself cannot carry it. Same peel, no stem to rebuild. */
+const COPULA = ["じゃありません", "ではありません", "じゃなかった", "じゃない", "でした", "です", "で"];
+/* する and 来る move their own stem, so no row of GODAN reaches them. */
+const IRREGULAR = { i: { し: "する", き: "くる" }, a: { し: "する", こ: "くる" } };
+
+function deconjugate(kana) {
+  const out = new Set();
+  /* Longest ending first, or ませんでした is read as ました. */
+  const peel = (endings, row) => {
+    const e = endings.find((x) => kana.endsWith(x) && kana.length > x.length);
+    if (!e) return;
+    const stem = kana.slice(0, -e.length);
+    const last = stem.slice(-1);
+    out.add(stem + "る"); // ichidan has one stem, and this is it
+    for (const [u, g] of Object.entries(GODAN)) if (g[row] === last) out.add(stem.slice(0, -1) + u);
+    const irr = IRREGULAR[row][last];
+    if (irr) out.add(stem.slice(0, -1) + irr);
+  };
+  peel(POLITE, "i");
+  peel(NEGATIVE, "a");
+  /* て and た carry the sound change inside the ending itself, so GODAN maps them
+     whole rather than by row. */
+  for (const [u, g] of Object.entries(GODAN))
+    for (const e of [g.te, g.ta])
+      if (kana.endsWith(e) && kana.length > e.length) out.add(kana.slice(0, -e.length) + u);
+  if (/[てた]$/.test(kana) && kana.length > 1) out.add(kana.slice(0, -1) + "る");
+  for (const [e, plain] of [["して", "する"], ["した", "する"], ["きて", "くる"], ["きた", "くる"]])
+    if (kana.endsWith(e) && kana.length > e.length) out.add(kana.slice(0, -e.length) + plain);
+  /* 行く is the one godan verb whose て-form ignores its own ending — the same
+     exception buildGodan carries. Anchored to its stem on purpose: a blanket
+     って → く would fold 買って into 書く. */
+  if (/(行|い)っ[てた]$/.test(kana)) out.add(kana.slice(0, -2) + "く");
+  /* い-adjectives inflect on their own stem: 高くて, 高かった, 高く → 高い. */
+  const a = ADJ.find((x) => kana.endsWith(x) && kana.length > x.length);
+  if (a) out.add(kana.slice(0, -a.length) + "い");
+  const c = COPULA.find((x) => kana.endsWith(x) && kana.length > x.length);
+  if (c) out.add(kana.slice(0, -c.length));
+  return out;
+}
+
 export function rankMatches(rows, query) {
   const q = query.trim();
   if (!q) return [];
@@ -123,11 +181,16 @@ export function rankMatches(rows, query) {
   /* One character prefix-matches half the dictionary. */
   const wantPrefix = q.length >= 2 || kana.length >= 2;
 
-  const tiers = [[], [], []];
+  /* Folded forms are checked against both columns: a kanji query deconjugates to
+     a kanji stem (行って → 行く) and a kana one to a reading (いって → いく). */
+  const folded = deconjugate(kana);
+
+  const tiers = [[], [], [], []];
   for (const r of rows) {
     if (r[0] === q || r[0] === kana) tiers[0].push(r);
     else if (r[1] === q || r[1] === kana) tiers[1].push(r);
-    else if (wantPrefix && (r[0].startsWith(q) || (kana.length >= 2 && r[1].startsWith(kana)))) tiers[2].push(r);
+    else if (folded.has(r[0]) || folded.has(r[1])) tiers[2].push(r);
+    else if (wantPrefix && (r[0].startsWith(q) || (kana.length >= 2 && r[1].startsWith(kana)))) tiers[3].push(r);
   }
   /* Sort inside each tier, never across, so an exact reading always outranks a
      prefix. Within a tier the dictionary's own order is meaningless — 幾 precedes
@@ -136,10 +199,13 @@ export function rankMatches(rows, query) {
      ponytail: one tie-breaker, not a frequency ranker. The picker shows three
      candidates with class and gloss, so being in the three is what matters. If the
      order ever needs to be right, parse the full JMdict XML for nf01–nf48. */
+  /* sure marks the three tiers the dictionary can stand behind. The prefix tier is
+     the only guess, and lookupWord reads the flag to decide whether it still has a
+     question worth spending the model on. */
   return tiers
-    .flatMap((t) => t.sort((a, b) => conjugable(b) - conjugable(a)))
+    .flatMap((t, tier) => t.sort((a, b) => conjugable(b) - conjugable(a)).map((r) => [r, tier < 3]))
     .slice(0, 3)
-    .map((r) => candidateWithTags(toCandidate(r)));
+    .map(([r, sure]) => ({ ...candidateWithTags(toCandidate(r)), sure }));
 }
 
 const lookupLocal = async (query) => rankMatches(await dict(), query);
@@ -150,13 +216,16 @@ const lookupLocal = async (query) => rankMatches(await dict(), query);
  *  have ended up anyway. */
 export async function lookupWord(query) {
   const local = await lookupLocal(query);
-  if (local.length) return local;
-  if (!getKey()) return [];
+  /* Only an exact or deconjugated hit settles it. A prefix hit used to settle it
+     too, which is how 行って answered 行ってきます and the model was never asked. */
+  if (local.some((c) => c.sure)) return local;
+  if (!getKey()) return local;
   const parsed = await ask(LOOKUP_PROMPT + query);
-  return (parsed.candidates || [])
+  const remote = (parsed.candidates || [])
     .filter((c) => c && c.word && c.reading && TYPES.some((t) => t.id === c.type))
     .slice(0, 3)
     .map(candidateWithTags);
+  return remote.length ? remote : local;
 }
 
 export async function fetchExamples(w) {
