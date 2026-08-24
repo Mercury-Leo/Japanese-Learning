@@ -128,20 +128,26 @@ function Chip({ on, onClick, accent = C.aux, ink = false, className = "", style,
    Used for interruptions that are not anchored to a spot on the page.
    Row-level actions keep their inline confirmations instead.
    ============================================================ */
-function ConfirmModal({ eyebrow, stat, statLabel, body, confirmLabel, cancelLabel, onConfirm, onCancel }) {
-  const cancelRef = useRef(onCancel);
-  cancelRef.current = onCancel;
+/* Escape closes, and the page behind holds still while a modal is up. Shared by
+   both modals so the two cannot drift apart. */
+function useModalDismiss(onClose) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKey = (e) => { if (e.key === "Escape") cancelRef.current(); };
+    const onKey = (e) => { if (e.key === "Escape") closeRef.current(); };
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
     };
   }, []);
+}
+
+function ConfirmModal({ eyebrow, stat, statLabel, body, confirmLabel, cancelLabel, onConfirm, onCancel }) {
+  useModalDismiss(onCancel);
 
   return (
     <div className="kd-scrim" onClick={onCancel}>
@@ -172,4 +178,44 @@ function ConfirmModal({ eyebrow, stat, statLabel, body, confirmLabel, cancelLabe
   );
 }
 
-export { Word, Ladder, Strip, Chip, ConfirmModal };
+/* ============================================================
+   WHAT'S NEW
+   The same frame as the confirm modal, because it is the same kind of
+   interruption — except there is nothing to decide, so it is acknowledged
+   rather than confirmed. Shown once per version, by App.
+   ============================================================ */
+function WhatsNew({ version, entries, onClose }) {
+  useModalDismiss(onClose);
+  const many = entries.length > 1;
+
+  return (
+    <div className="kd-scrim" onClick={onClose}>
+      <div className="kd-modal" role="dialog" aria-modal="true" aria-label={"What is new in version " + version}
+           onClick={(e) => e.stopPropagation()}>
+        <div className="kd-micro" style={{ color: C.stem }}>UPDATED · {version}</div>
+
+        {entries.map((entry) => (
+          <div key={entry.version} style={{ marginTop: S[4] }}>
+            {/* The version only earns a line of its own when there is more than
+                one to tell apart — otherwise the eyebrow above already said it. */}
+            {many && (
+              <div className="kd-micro" style={{ letterSpacing: ".16em", color: C.muted }}>{entry.version}</div>
+            )}
+            <ul style={{ margin: many ? S[2] + "px 0 0" : 0, paddingLeft: 18, fontSize: T.base, lineHeight: 1.6, color: C.ink }}>
+              {entry.changes.map((change, i) => (
+                <li key={i} style={{ marginTop: i ? S[2] : 0 }}>{change}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+
+        <button className="kd-btn" onClick={onClose} autoFocus
+          style={{ width: "100%", marginTop: S[4], background: C.stem, color: C.panel, padding: P.wide, fontSize: T.base }}>
+          Got it
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export { Word, Ladder, Strip, Chip, ConfirmModal, WhatsNew };

@@ -6,6 +6,7 @@ export const GKEY = "kotoba-settings-v1";
 export const TKEY = "kotoba-theme-v1";
 export const PKEY = "kotoba-stats-v1";
 export const IKEY = "kotoba-install-v1";
+export const VKEY = "kotoba-version-v1";
 
 /* Theme is the one preference that has to be known before the first paint, so it
    gets a synchronous pair rather than going through the async shape below. It is
@@ -21,6 +22,16 @@ export function readTheme() {
 }
 export function writeTheme(pref) {
   try { localStorage.setItem(TKEY, pref); } catch { /* session-only */ }
+}
+
+/* The version this device last ran. Synchronous like the theme pair, and for the
+   same reason as it being separate from `settings`: which build a phone last
+   booted is not part of the deck anyone exports. */
+export function readSeenVersion() {
+  try { return localStorage.getItem(VKEY); } catch { return null; }
+}
+export function writeSeenVersion(v) {
+  try { localStorage.setItem(VKEY, v); } catch { /* session-only */ }
 }
 
 export const storage = {

@@ -5,13 +5,13 @@ import { Plus, Trash2, X, Search, Settings as Cog } from "lucide-react";
 
 import { C, ROLE_COLOR, MINCHO, SANS, MONO, T, JP, RUBY, S, P, applyTheme } from "./theme.js";
 import { APP_CSS } from "./app-css.js";
-import { storage, KEY, SKEY, GKEY, PKEY, readTheme, writeTheme } from "./storage.js";
+import { storage, KEY, SKEY, GKEY, PKEY, readTheme, writeTheme, readSeenVersion, writeSeenVersion } from "./storage.js";
 import { EMPTY, record, mergeStats, mergeStored } from "./stats.js";
 import { useSpeechStatus, setAudioReporter } from "./speech.js";
 import { warmDict } from "./api.js";
 import { romaji, conjugate, TYPES, typeLabel, GROUPS, SEED, FORM_HINT } from "./engine.js";
 import { DEFAULTS, mergeSettings, visibleForms, wordInScope, SCRIPTS } from "./settings.js";
-import { Word, Ladder, Strip, Chip, ConfirmModal } from "./ui.jsx";
+import { Word, Ladder, Strip, Chip, ConfirmModal, WhatsNew } from "./ui.jsx";
 import AddWord from "./AddWord.jsx";
 import DeckTools from "./DeckTools.jsx";
 import StackPanel from "./StackPanel.jsx";
@@ -23,6 +23,7 @@ import ProgressView from "./ProgressView.jsx";
 import ChartsView from "./ChartsView.jsx";
 import Say from "./Say.jsx";
 import Install from "./Install.jsx";
+import { CHANGELOG } from "./changelog.js";
 
 export default function App() {
   const [words, setWords] = useState([]);
@@ -44,6 +45,21 @@ export default function App() {
   /* main.jsx already applied this before first paint; state just mirrors it so
      the Settings control has something to render against. */
   const [theme, setTheme] = useState(readTheme);
+  /* An update announces itself once. Every launch stamps this build's version on
+     the device; a launch that finds an older stamp says so, and dismissing it is
+     the end of it until the next bump. A device with no stamp — first run, or
+     first run since this shipped — is stamped in silence, because arriving is not
+     an update. */
+  const [lastVersion] = useState(readSeenVersion);
+  const [updateSeen, setUpdateSeen] = useState(false);
+  /* Everything above the entry this device last ran: three skipped builds read as
+     three sections. A stamp older than the changelog itself shows the lot, and a
+     bump with nothing written about it shows nothing at all. */
+  const notes = (() => {
+    if (!lastVersion || lastVersion === __VERSION__ || updateSeen) return [];
+    const i = CHANGELOG.findIndex((e) => e.version === lastVersion);
+    return i === -1 ? CHANGELOG : CHANGELOG.slice(0, i);
+  })();
 
   useEffect(() => {
     let alive = true;
@@ -118,6 +134,10 @@ export default function App() {
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
   }, [theme]);
+
+  useEffect(() => {
+    if (lastVersion !== __VERSION__) writeSeenVersion(__VERSION__);
+  }, [lastVersion]);
 
   useEffect(() => {
     setAudioReporter(setAudioNote);
@@ -617,6 +637,10 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+
+      {notes.length > 0 && (
+        <WhatsNew version={__VERSION__} entries={notes} onClose={() => setUpdateSeen(true)} />
       )}
 
       <Install offset={!!audioNote} />
