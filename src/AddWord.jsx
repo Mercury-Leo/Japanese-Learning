@@ -13,8 +13,10 @@ import { Word, Chip } from "./ui.jsx";
 
 const BLANK = { word: "", reading: "", meaning: "", type: "godan", typeTouched: false, jlpt: "", trans: "", common: null };
 
-export default function AddWord({ onAdd }) {
-  const [q2, setQ2] = useState("");
+/* seed: whatever was typed in the deck search when the panel opened. The panel
+   unmounts on close, so useState's initial value is enough — no sync needed. */
+export default function AddWord({ onAdd, seed = "" }) {
+  const [q2, setQ2] = useState(seed);
   const [looking, setLooking] = useState(false);
   const [hits, setHits] = useState(null);
   const [lookErr, setLookErr] = useState(null);

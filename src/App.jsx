@@ -381,7 +381,7 @@ export default function App() {
             </button>
           </div>
 
-          {adding && <AddWord onAdd={addWord} />}
+          {adding && <AddWord onAdd={addWord} seed={query} />}
 
           <div className="kd-list" style={{ border: "1px solid " + C.rule, background: C.panel }}>
             {filtered.length === 0 && (
