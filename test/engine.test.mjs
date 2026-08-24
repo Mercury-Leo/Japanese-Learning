@@ -337,6 +337,41 @@ folds("静かです", "静か");
 folds("静かでした", "静か");
 folds("図書館です", "図書館");
 
+/* Potential, passive and causative — MODS builds each of them into a fresh
+   ichidan verb, so the fold has to run back down through one. */
+folds("飲める", "飲む");
+folds("行ける", "行く");
+folds("話せる", "話す");
+folds("待てる", "待つ");
+folds("買える", "買う");
+folds("nomeru", "飲む");
+folds("飲まれる", "飲む");
+folds("買われる", "買う");
+folds("飲ませる", "飲む");
+folds("買わせる", "買う");
+folds("食べられる", "食べる");
+folds("食べさせる", "食べる");
+folds("tabesaseru", "食べる");
+// ら-nuki: not textbook, but it is what gets said and what gets typed.
+folds("食べれる", "食べる");
+// する has no regular potential — できる replaces it wholesale.
+folds("勉強できる", "勉強する");
+folds("勉強される", "勉強する");
+folds("勉強させる", "勉強する");
+folds("来られる", "来る");
+folds("こられる", "来る");
+folds("来させる", "来る");
+
+/* Derived verbs stack, so one peel is not enough: these unwind two and three deep. */
+folds("行けます", "行く");
+folds("飲まれました", "飲む");
+folds("食べさせない", "食べる");
+folds("食べさせられる", "食べる");
+eq(cj("食べさせられます")[0], "食べる", `three peels deep still lands first — got [${cj("食べさせられます")}]`);
+// The potential peel takes any る, so every ichidan verb runs through it. It must
+// not cost 食べる its own entry.
+eq(cj("食べる")[0], "食べる", "a dictionary form still answers as itself");
+
 // A form still loses to a word actually spelled that way.
 eq(cj("いく")[0], "行く", "an exact hit still outranks a deconjugated one");
 

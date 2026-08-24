@@ -135,8 +135,22 @@ const ADJ = ["くありません", "くなかった", "かったです", "かっ
 const COPULA = ["じゃありません", "ではありません", "じゃなかった", "じゃない", "でした", "です", "で"];
 /* する and 来る move their own stem, so no row of GODAN reaches them. */
 const IRREGULAR = { i: { し: "する", き: "くる" }, a: { し: "する", こ: "くる" } };
+/* Potential, passive and causative sit on rows GODAN already knows — え for the
+   potential, あ for the other two — so they need an ending and a row, nothing more. */
+const POTENTIAL = ["る"];
+const PASSIVE = ["れる"];
+const CAUSATIVE = ["せる"];
+/* Their ichidan and irregular halves have no row to shift, so those swap whole.
+   させる appears twice on purpose: 食べさせる is ichidan and 勉強させる is する, and
+   which one a query is cannot be read off the ending. Both guesses go to the
+   dictionary and it keeps the one that exists. */
+const DERIVED = [
+  ["られる", "る"], ["させる", "る"], ["れる", "る"],
+  ["できる", "する"], ["される", "する"], ["させる", "する"],
+  ["こられる", "くる"], ["こさせる", "くる"], ["これる", "くる"],
+];
 
-function deconjugate(kana) {
+function peelOnce(kana) {
   const out = new Set();
   /* Longest ending first, or ませんでした is read as ました. */
   const peel = (endings, row) => {
@@ -144,13 +158,19 @@ function deconjugate(kana) {
     if (!e) return;
     const stem = kana.slice(0, -e.length);
     const last = stem.slice(-1);
-    out.add(stem + "る"); // ichidan has one stem, and this is it
+    // ichidan has one stem, and this is it — unless that just hands back the query
+    if (stem + "る" !== kana) out.add(stem + "る");
     for (const [u, g] of Object.entries(GODAN)) if (g[row] === last) out.add(stem.slice(0, -1) + u);
-    const irr = IRREGULAR[row][last];
+    const irr = IRREGULAR[row]?.[last];
     if (irr) out.add(stem.slice(0, -1) + irr);
   };
   peel(POLITE, "i");
   peel(NEGATIVE, "a");
+  peel(PASSIVE, "a");
+  peel(CAUSATIVE, "a");
+  peel(POTENTIAL, "e");
+  for (const [e, tail] of DERIVED)
+    if (kana.endsWith(e) && kana.length >= e.length) out.add(kana.slice(0, -e.length) + tail);
   /* て and た carry the sound change inside the ending itself, so GODAN maps them
      whole rather than by row. */
   for (const [u, g] of Object.entries(GODAN))
@@ -168,6 +188,24 @@ function deconjugate(kana) {
   if (a) out.add(kana.slice(0, -a.length) + "い");
   const c = COPULA.find((x) => kana.endsWith(x) && kana.length > x.length);
   if (c) out.add(kana.slice(0, -c.length));
+  return out;
+}
+
+/* A potential, passive or causative is a brand-new ichidan verb — MODS says so with
+   `to: "ichidan"` — which is why they stack, and why one peel is not enough:
+   食べさせられます unwinds through 食べさせられる and 食べさせる before it reaches
+   食べる. Each round only re-expands what the round before it learned, so the set
+   converges on its own well inside the cap; the cap is there so a peel that feeds
+   itself cannot spin. */
+function deconjugate(kana) {
+  const out = new Map();
+  let wave = [kana];
+  for (let round = 1; round <= 3 && wave.length; round++) {
+    const next = [];
+    for (const k of wave)
+      for (const stem of peelOnce(k)) if (stem && !out.has(stem)) { out.set(stem, round); next.push(stem); }
+    wave = next;
+  }
   return out;
 }
 
@@ -199,11 +237,19 @@ export function rankMatches(rows, query) {
      ponytail: one tie-breaker, not a frequency ranker. The picker shows three
      candidates with class and gloss, so being in the three is what matters. If the
      order ever needs to be right, parse the full JMdict XML for nf01–nf48. */
-  /* sure marks the three tiers the dictionary can stand behind. The prefix tier is
+  /* Inside the folded tier the round is itself a ranking: 飲む comes off のみます in
+     one peel, and a word that took three is a longer shot than one that took one.
+     Rows outside that tier are never in the map, so they all share round 0 and fall
+     through to the tie-breaker as before.
+
+     sure marks the three tiers the dictionary can stand behind. The prefix tier is
      the only guess, and lookupWord reads the flag to decide whether it still has a
      question worth spending the model on. */
+  const round = (r) => folded.get(r[0]) ?? folded.get(r[1]) ?? 0;
   return tiers
-    .flatMap((t, tier) => t.sort((a, b) => conjugable(b) - conjugable(a)).map((r) => [r, tier < 3]))
+    .flatMap((t, tier) => t
+      .sort((a, b) => round(a) - round(b) || conjugable(b) - conjugable(a))
+      .map((r) => [r, tier < 3]))
     .slice(0, 3)
     .map(([r, sure]) => ({ ...candidateWithTags(toCandidate(r)), sure }));
 }
