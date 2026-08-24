@@ -134,7 +134,10 @@ export default function ChartsView({ audio = true }) {
       {/* Same segmented control as the masthead, one level down — and centred
           for the same reason the destinations up there are. */}
       <nav className="kd-seg" aria-label="Chart subjects"
-        style={{ width: "fit-content", marginLeft: "auto", marginRight: "auto", marginBottom: S[4] }}>
+        style={{
+          width: "fit-content", maxWidth: "100%", marginLeft: "auto", marginRight: "auto",
+          marginBottom: S[4], flexWrap: "wrap", justifyContent: "center",
+        }}>
         {GROUPS.map((g) => {
           const on = g === group;
           return (
