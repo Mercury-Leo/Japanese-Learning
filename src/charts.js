@@ -251,6 +251,92 @@ const FAMILY = {
   note: "Left column for your own family when talking to an outsider, right column for someone else's — and for addressing your own relatives face to face, which is why a child calls their father お父さん. The polite form is usually お〜さん, but the Sino-Japanese words take ご instead (ご両親, ご家族), 夫 and 妻 swap for different words entirely (ご主人, 奥さん), and 兄・姉 stretch their vowel on the way: あに → おにいさん, あね → おねえさん.",
 };
 
+/* Position words are nouns, not prepositions — which is the whole point of the
+   chart: they hang off の and take a particle of their own, so "on the desk" is
+   three words in the order 机の上. Grouped with the directions chart because in
+   practice the two are used in one breath: 信号の前を右に曲がる. */
+const PLACE = {
+  group: "Directions", title: "Where it is", jp: "位置",
+  rows: [
+    ["上", "うえ", "on, above"],
+    ["下", "した", "under, below"],
+    ["前", "まえ", "in front of"],
+    ["後ろ", "うしろ", "behind"],
+    ["後", "*あと", "after — in time, not space"],
+    ["左", "ひだり", "on the left"],
+    ["右", "みぎ", "on the right"],
+    ["中", "なか", "inside"],
+    ["外", "そと", "outside"],
+    ["隣", "となり", "next door to"],
+    ["横", "よこ", "at the side of"],
+    ["近く", "ちかく", "near, close to"],
+    ["間", "あいだ", "between"],
+    ["向かい", "むかい", "opposite, across from"],
+  ],
+  note: "Each one is a noun, so it takes の in front of it and a particle behind: 机の上に本があります — に for where a thing sits, で for where something happens (公園で遊ぶ). Three near-synonyms are not interchangeable: 隣 is immediately adjacent and usually the same kind of thing (家の隣), 横 is simply the side you are on, 近く is anywhere nearby. 後 is the one row that does not read the way its neighbour does — 後ろ is うしろ and means behind you in space, 後 alone is あと and means afterwards in time: 食事の後. None of these has a の-less short form; ここ・そこ・あそこ do that job, in the Asking tab.",
+};
+
+/* The directions you are given, rather than the ones you describe. Verbs and the
+   landmarks they attach to share one chart because a real instruction needs
+   both: 二つ目の信号を左に曲がってください. */
+const DIRECTIONS = {
+  group: "Directions", title: "Giving directions", jp: "道案内",
+  rows: [
+    ["まっすぐ", "まっすぐ", "straight ahead"],
+    ["曲がる", "まがる", "to turn"],
+    ["右に曲がる", "みぎにまがる", "turn right"],
+    ["左に曲がる", "ひだりにまがる", "turn left"],
+    ["渡る", "わたる", "to cross"],
+    ["通る", "とおる", "to go along, pass through"],
+    ["進む", "すすむ", "to carry on, go forward"],
+    ["戻る", "もどる", "to go back"],
+    ["着く", "つく", "to arrive"],
+    ["道", "みち", "road, street"],
+    ["角", "かど", "corner"],
+    ["信号", "しんごう", "traffic light"],
+    ["交差点", "こうさてん", "crossroads"],
+    ["突き当たり", "つきあたり", "the end of the street"],
+  ],
+  note: "曲がる takes two particles at once and they do different jobs: を marks the landmark you turn at, に the direction you end up facing — 信号を右に曲がる, turn right at the light. 渡る and 通る take を for the thing you move across or along (道を渡る, 公園を通る) even though nothing is being acted on. Directions are handed out in the て form plus ください: まっすぐ行ってください, 二つ目の角を左に曲がってください. 曲がる・渡る・通る・戻る are all godan despite the る, so 曲がって, never 曲がえて; 進む is 進んで and 着く is 着いて.",
+};
+
+/* The four points are two vocabularies wearing the same kanji: the native word
+   when it stands alone, the Sino-Japanese one the moment it is compounded. */
+const COMPASS = {
+  group: "Directions", title: "Compass points", jp: "方角",
+  rows: [
+    ["東", "ひがし", "east"],
+    ["西", "にし", "west"],
+    ["南", "みなみ", "south"],
+    ["北", "きた", "north"],
+    ["北東", "*ほくとう", "northeast"],
+    ["北西", "*ほくせい", "northwest"],
+    ["南東", "*なんとう", "southeast"],
+    ["南西", "*なんせい", "southwest"],
+    ["東西", "*とうざい", "east and west"],
+    ["南北", "*なんぼく", "north and south"],
+  ],
+  note: "Standing alone they are native words — ひがし, にし, みなみ, きた. Compound them and every one swaps to its Sino-Japanese reading: 北東 is ほくとう, never きたひがし. The vertical axis leads in a compound, the reverse of English: northeast is 北東, and 東北 — the same two kanji the other way round — is the Tōhoku region, not a direction. Reciting them, Japanese runs 東西南北: east, west, south, north. 東 turns up as とう in place names too, 東京 being the one everybody meets first.",
+};
+
+/* Station signage, which is why it is a chart and not a vocabulary card: a large
+   station is navigated entirely by which 〜口 you are told to use. */
+const EXITS = {
+  group: "Directions", title: "Exits and gates", jp: "出入口",
+  rows: [
+    ["出口", "でぐち", "exit"],
+    ["入口", "いりぐち", "entrance"],
+    ["東口", "ひがしぐち", "east exit"],
+    ["西口", "にしぐち", "west exit"],
+    ["南口", "みなみぐち", "south exit"],
+    ["北口", "きたぐち", "north exit"],
+    ["中央口", "ちゅうおうぐち", "central exit"],
+    ["改札口", "かいさつぐち", "ticket gate"],
+    ["非常口", "ひじょうぐち", "emergency exit"],
+  ],
+  note: "口 alone is くち, a mouth or an opening, and it voices to ぐち the moment anything sits in front of it — every row here. The compass words keep their native readings in these, unlike the compounds in the chart above: ひがしぐち, not とうぐち. Worth the chart because the exits of a big station can be a ten-minute walk apart and nobody names the street, only the gate: 待ち合わせは北口で.",
+};
+
 /* The only charts here that hold transformations rather than words, and the one
    place a verb's class stops being trivia: get it wrong and you produce 食べって.
    Split in two because a single heading cannot say both "the ending decides
@@ -299,6 +385,7 @@ export const CHARTS = [
   DIGITS, BIG, COUNTERS,
   KOSOADO, QWORDS,
   FAMILY,
+  PLACE, DIRECTIONS, COMPASS, EXITS,
   TE_GODAN, TE_OTHER,
 ];
 
