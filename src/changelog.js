@@ -9,6 +9,14 @@
    version it cannot describe. */
 export const CHANGELOG = [
   {
+    version: "0.4.0",
+    changes: [
+      "Every chart drills: the Quiz button in its heading asks the readings of that table, with the wrong answers taken from the same table.",
+      "A whole subject drills at once too — Quiz the whole tab spreads its twelve questions evenly across every chart on the page, however lopsided their sizes.",
+      "A reading that breaks its chart's pattern says so when you miss it.",
+    ],
+  },
+  {
     version: "0.3.0",
     changes: [
       "The verb charts give the dictionary form and the て form a table each, so neither has to scroll sideways on a phone.",
