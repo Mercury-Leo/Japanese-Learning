@@ -9,6 +9,17 @@
    version it cannot describe. */
 export const CHANGELOG = [
   {
+    version: "0.3.0",
+    changes: [
+      "The verb charts give the dictionary form and the て form a table each, so neither has to scroll sideways on a phone.",
+      "Looking a word up works from the form you heard: 食べます and 行って find 食べる and 行く.",
+      "Potential, passive and causative unwind too, however many are stacked — 食べさせられます reaches 食べる.",
+      "Chart tabs wrap onto a second line instead of running off the screen.",
+      "A search that finds nothing carries the term into the add-word lookup.",
+      "Charts have a Directions tab.",
+    ],
+  },
+  {
     version: "0.2.0",
     changes: [
       "An update now introduces itself: this note, once per new version, listing what changed.",
