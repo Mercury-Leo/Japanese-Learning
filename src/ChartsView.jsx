@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { C, MINCHO, MONO, T, JP, S } from "./theme.js";
-import { CHARTS, GROUPS, cell, read } from "./charts.js";
+import { CHARTS, GROUPS, cell, chartItems, read } from "./charts.js";
 import { speak } from "./speech.js";
 import Say from "./Say.jsx";
+import ChartQuiz from "./ChartQuiz.jsx";
 
 /* Renders the tables in charts.js. Two shapes: a list of [kanji, reading, gloss]
    rows, and a matrix for the sets where the grid itself is the lesson — counter
@@ -23,6 +24,10 @@ const CELL = { paddingTop: S[2], paddingBottom: S[2], paddingRight: S[2] };
    wide and a phone shows 343 of them, so without this you scroll to 何 and can
    no longer see whether you are reading 階 or 杯. Opaque, or the cells slide
    visibly underneath it. */
+/* The value `quiz` holds when the drill is the whole subject rather than one
+   table. Not a chart title, and never will be one. */
+const TAB = "*";
+
 const STUCK = { position: "sticky", left: 0, background: C.ground, borderRight: "1px solid " + C.ruleSoft };
 
 /* Ruby over kanji, plain kana when there is no kanji to sit above — a reading
@@ -126,6 +131,12 @@ export default function ChartsView({ audio = true }) {
      counters. Subject comes from the data, so this is a filter, not a router —
      nothing is deep-linked and nothing needs to survive leaving the view. */
   const [group, setGroup] = useState(GROUPS[0]);
+  /* One drill at a time, by chart title — the chart being quizzed is hidden
+     while it runs, and two hidden charts would just be a way to lose your
+     place. TAB is the whole subject at once, which no chart can be called. */
+  const [quiz, setQuiz] = useState(null);
+  const tabOn = quiz === TAB;
+  const charts = CHARTS.filter((c) => c.group === group);
 
   return (
     <div style={{ maxWidth: 1120, margin: "0 auto", padding: S[4] }}>
@@ -141,7 +152,9 @@ export default function ChartsView({ audio = true }) {
         {GROUPS.map((g) => {
           const on = g === group;
           return (
-            <button key={g} className="kd-btn kd-form-chip" onClick={() => setGroup(g)}
+            /* Leaving the subject ends its drill: half the questions no longer
+               have a table on the page behind them. */
+            <button key={g} className="kd-btn kd-form-chip" onClick={() => { setGroup(g); setQuiz(null); }}
               aria-current={on ? "true" : undefined}
               style={{
                 fontFamily: MONO, fontSize: T.micro, letterSpacing: ".16em",
@@ -151,28 +164,56 @@ export default function ChartsView({ audio = true }) {
         })}
       </nav>
 
-      <div style={{ fontSize: T.sm, color: C.muted, lineHeight: 1.6, marginBottom: S[5] }}>
-        Closed sets, for looking up rather than drilling. A reading shown{" "}
-        <span style={{ color: C.stem, borderBottom: "1px dotted " + C.stem }}>like this</span>{" "}
-        breaks the pattern of the chart it sits in — those are the ones worth the trouble.
-        {audio && " Readings play on tap: the button on a list row, the cell itself in a grid."}
+      {/* The subject's own head, above its charts: one drill over everything
+          the tab holds, where each chart's button drills only itself. */}
+      <div className="kd-head">
+        <span className="kd-micro">{group}</span>
+        <span className="kd-rail" />
+        <button className="kd-btn kd-act" onClick={() => setQuiz(tabOn ? null : TAB)}>
+          {tabOn ? "Close" : "Quiz the whole tab"}
+        </button>
       </div>
 
-      {CHARTS.filter((c) => c.group === group).map((c) => (
-        <section key={c.title} style={{ marginBottom: S[6] }}>
-          <div className="kd-head">
-            <span className="kd-micro">{c.title}</span>
-            <span style={{ fontFamily: MINCHO, fontSize: T.sm, color: C.muted }}>{c.jp}</span>
-            <span className="kd-rail" />
-          </div>
+      {tabOn ? (
+        <ChartQuiz items={charts.flatMap(chartItems)} audio={audio} onClose={() => setQuiz(null)} />
+      ) : (
+        <>
+        <div style={{ fontSize: T.sm, color: C.muted, lineHeight: 1.6, marginBottom: S[5] }}>
+          Closed sets, for looking up rather than drilling. A reading shown{" "}
+          <span style={{ color: C.stem, borderBottom: "1px dotted " + C.stem }}>like this</span>{" "}
+          breaks the pattern of the chart it sits in — those are the ones worth the trouble.
+          {audio && " Readings play on tap: the button on a list row, the cell itself in a grid."}
+        </div>
 
-          {c.cols
-            ? <GridChart cols={c.cols} rows={c.rows} audio={audio} />
-            : <ListChart rows={c.rows} audio={audio} />}
+        {charts.map((c) => {
+          const on = quiz === c.title;
+          return (
+            <section key={c.title} style={{ marginBottom: S[6] }}>
+              <div className="kd-head">
+                <span className="kd-micro">{c.title}</span>
+                <span style={{ fontFamily: MINCHO, fontSize: T.sm, color: C.muted }}>{c.jp}</span>
+                <span className="kd-rail" />
+                <button className="kd-btn kd-act" onClick={() => setQuiz(on ? null : c.title)}>
+                  {on ? "Close" : "Quiz"}
+                </button>
+              </div>
 
-          <div className="kd-note" style={{ marginTop: S[3] }}>{c.note}</div>
-        </section>
-      ))}
+              {on ? (
+                <ChartQuiz items={chartItems(c)} audio={audio} onClose={() => setQuiz(null)} />
+              ) : (
+                <>
+                  {c.cols
+                    ? <GridChart cols={c.cols} rows={c.rows} audio={audio} />
+                    : <ListChart rows={c.rows} audio={audio} />}
+
+                  <div className="kd-note" style={{ marginTop: S[3] }}>{c.note}</div>
+                </>
+              )}
+            </section>
+          );
+        })}
+        </>
+      )}
     </div>
   );
 }

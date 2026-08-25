@@ -10,7 +10,7 @@ import {
 } from "../src/engine.js";
 import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope, contentOf, isContentPatch, sameContent } from "../src/settings.js";
 import { tagsFromLookup, candidateWithTags, rankMatches } from "../src/api.js";
-import { CHARTS, GROUPS, cell, read as chartRomaji } from "../src/charts.js";
+import { CHARTS, GROUPS, cell, chartItems, quizQueue, read as chartRomaji } from "../src/charts.js";
 import { EMPTY, MEANING, wordKey, record, statFor, ruleKey, byRule, wordAccuracy, totals, mergeStats, mergeStored } from "../src/stats.js";
 
 let pass = 0, fail = 0;
@@ -598,6 +598,42 @@ for (const c of CHARTS) {
     eq(/[ぁ-んァ-ヺ]/.test(chartRomaji(kana)), false, `${c.title} · ${label} · "${kana}" transliterates fully`);
   }
 }
+
+/* ---------------- chart quiz ---------------- */
+group("chart quiz");
+/* The distractors on a chart question all come from that one chart, so a chart
+   that holds two readings would ship a coin toss. Three is the floor because
+   two irregular-verb charts really are that small once the row labels that
+   spell their own cell are dropped — the quiz shows however many it has. */
+for (const c of CHARTS) {
+  const items = chartItems(c);
+  eq(new Set(items.map((i) => i.kana)).size >= 3, true, `${c.title} · offers at least three readings to choose between`);
+  eq(items.every((i) => i.ask && i.kana), true, `${c.title} · every question has a prompt and an answer`);
+  /* A prompt that contains its own answer is a question nobody can get wrong —
+     the verb tables spell the rule in the row label, and two of those labels
+     are the cell beside them. */
+  eq(items.every((i) => !i.ask.includes(i.kana)), true, `${c.title} · no prompt spells its own answer`);
+  /* The tab-wide drill pools several charts and then takes each question's
+     wrong answers back out of the chart it came from, so the stamp has to
+     survive the pooling. */
+  eq(items.every((i) => i.chart === c.title), true, `${c.title} · every question names the chart it came from`);
+}
+
+/* A tab's drill has to be a drill on the tab. Counting is the case that catches
+   a flat sample: 112 of its 134 readings are the counters grid, so an even draw
+   from the pool would hand back twelve counters and no digits at all. */
+for (const g of GROUPS) {
+  const charts = CHARTS.filter((c) => c.group === g);
+  const q = quizQueue(charts.flatMap(chartItems), 12);
+  eq(q.length, 12, `${g} · a tab drill is twelve questions`);
+  eq(new Set(q).size, q.length, `${g} · no question is asked twice in one run`);
+  const spread = new Set(q.map((i) => i.chart));
+  eq(spread.size, Math.min(charts.length, 12), `${g} · every chart in the tab gets asked`);
+}
+/* One chart in, the round-robin has to collapse to a plain sample, and a chart
+   smaller than the run length gives what it has rather than repeating itself. */
+const tiny = chartItems(CHARTS.find((c) => c.title === "Days of the week"));
+eq(quizQueue(tiny, 12).length, tiny.length, "a chart shorter than the run is asked once through");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

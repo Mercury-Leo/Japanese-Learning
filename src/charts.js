@@ -1,4 +1,4 @@
-import { romaji } from "./engine.js";
+import { romaji, shuffle } from "./engine.js";
 
 /* The data behind the Charts view: closed sets you look up rather than drill.
    Kept out of the component so the shape can be checked by the test suite —
@@ -422,3 +422,55 @@ export function cell(raw) {
 
 /** Romaji for display: derived, with the reading separator given room to breathe. */
 export const read = (kana) => romaji(kana).replace(/・/g, " · ");
+
+/** A chart flattened into quiz questions: every reading the table holds, with
+ *  whatever the table prints beside it as the prompt. In a matrix that is the
+ *  row label crossed with its column heading — 階 × 3 — which is the grid's
+ *  whole lesson; in a list it is the kanji, with the gloss underneath. A list
+ *  row whose "kanji" is just its kana (いつ, いくら) has no reading to ask for,
+ *  so the English becomes the prompt and the kana becomes the answer.
+ *
+ *  Every question carries the chart it came from, because a tab-wide drill
+ *  still has to take its wrong answers from the right table: にちようび is no
+ *  kind of distractor for 三階. */
+export function chartItems(chart) {
+  if (chart.cols) {
+    return chart.rows
+      .flatMap((r) =>
+        r.cells.map((raw, i) => {
+          const { ja, kana, irr } = cell(raw);
+          return { chart: chart.title, ask: r.k, en: false, sub: [r.gloss, chart.cols[i]].filter(Boolean).join(" · "), ja, kana, irr };
+        }))
+      /* The verb tables put the rule in the row label, and two of those labels
+         spell their own cell — "する → して" asked for して. Nothing to answer,
+         so it is not a question. */
+      .filter((it) => !it.ask.includes(it.kana));
+  }
+  return chart.rows.map(([ja, raw, gloss]) => {
+    const { kana, irr } = cell(raw);
+    return ja === kana
+      ? { chart: chart.title, ask: gloss, en: true, sub: "", ja: null, kana, irr }
+      : { chart: chart.title, ask: ja, en: false, sub: gloss, ja, kana, irr };
+  });
+}
+
+/** A run's questions, drawn round-robin from the charts the items came from
+ *  rather than flat: the Counters grid holds 112 of the Counting tab's 134
+ *  readings, so an even sample of the pool would be twelve counters calling
+ *  itself a quiz on the tab. Given one chart it is a plain shuffle. */
+export function quizQueue(items, len) {
+  const decks = new Map();
+  for (const it of items) decks.set(it.chart, [...(decks.get(it.chart) || []), it]);
+  const piles = [...decks.values()].map((d) => shuffle([...d]));
+  const out = [];
+  while (out.length < len && piles.some((p) => p.length)) {
+    for (const p of piles) {
+      if (!p.length) continue;
+      out.push(p.pop());
+      if (out.length === len) break;
+    }
+  }
+  /* Dealt one per chart, so without this the run cycles table by table and the
+     next question's subject is always predictable. */
+  return shuffle(out);
+}
