@@ -3,7 +3,8 @@
    pulls from here, which is what keeps one chip from drifting into four. */
 import { useEffect, useRef } from "react";
 import { C, ROLE_COLOR, MINCHO, MONO, T, JP, RUBY, S, P } from "./theme.js";
-import { columns, GODAN, romaji } from "./engine.js";
+import { columns, GODAN, romaji, typeLabel } from "./engine.js";
+import { wordAccuracy } from "./stats.js";
 
 /* ============================================================
    SCRIPT RENDERING — furigana / kanji / kana
@@ -218,4 +219,60 @@ function WhatsNew({ version, entries, onClose }) {
   );
 }
 
-export { Word, Ladder, Strip, Chip, ConfirmModal, WhatsNew };
+function Brief({ days, count, script, stats, onDrill, onClose }) {
+  useModalDismiss(onClose);
+
+  return (
+    <div className="kd-scrim" onClick={onClose}>
+      <div className="kd-modal" role="dialog" aria-modal="true"
+           aria-label={"New words since your last brief: " + count}
+           onClick={(e) => e.stopPropagation()}>
+        <div className="kd-micro" style={{ color: C.stem }}>
+          BRIEF · {count} NEW WORD{count === 1 ? "" : "S"}
+        </div>
+
+        {days.map((g) => (
+          <div key={g.day} style={{ marginTop: S[4] }}>
+            <div className="kd-micro" style={{ letterSpacing: ".16em", color: C.muted }}>{g.label}</div>
+            <div style={{ display: "grid", gap: S[2], marginTop: S[2] }}>
+              {g.words.map((w) => {
+                /* Nothing drilled reads as nothing, not as 0 of 0 — an unasked
+                   word has no accuracy, which is not the same as a bad one. */
+                const a = wordAccuracy(stats, w);
+                return (
+                  <div key={w.id} style={{ display: "flex", alignItems: "baseline", gap: S[2], flexWrap: "wrap" }}>
+                    <span style={{ fontSize: JP.sm }}>
+                      <Word text={w.word} kana={w.reading} mode={script} />
+                    </span>
+                    <span style={{ fontSize: T.sm, color: C.ink, flex: "1 1 120px", minWidth: 0 }}>{w.meaning}</span>
+                    <span style={{ fontFamily: MINCHO, fontSize: T.fine, color: C.aux }}>{typeLabel(w.type)}</span>
+                    {a.n > 0 && (
+                      <span style={{ fontFamily: MONO, fontSize: T.micro, color: a.ok * 10 < a.n * 6 ? C.stem : C.aux }}>
+                        {a.ok}/{a.n}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* Both buttons close, and closing is what marks the brief read — so
+            drilling counts as having read it, which is the whole point of it. */}
+        <div style={{ display: "flex", gap: S[2], marginTop: S[4] }}>
+          <button className="kd-btn" onClick={onDrill}
+            style={{ flex: 1, background: C.stem, color: C.panel, padding: P.wide, fontSize: T.base }}>
+            Drill these
+          </button>
+          <button className="kd-btn" onClick={onClose} autoFocus
+            style={{ flex: 1, border: "1px solid " + C.ink, background: C.panel, color: C.ink, padding: P.wide, fontSize: T.base }}>
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export { Word, Ladder, Strip, Chip, ConfirmModal, WhatsNew, Brief };

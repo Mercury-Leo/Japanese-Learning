@@ -12,6 +12,7 @@ import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, 
 import { tagsFromLookup, candidateWithTags, rankMatches } from "../src/api.js";
 import { CHARTS, GROUPS, cell, chartItems, quizQueue, read as chartRomaji } from "../src/charts.js";
 import { EMPTY, MEANING, wordKey, record, statFor, ruleKey, byRule, wordAccuracy, totals, mergeStats, mergeStored } from "../src/stats.js";
+import { newSince, briefCount } from "../src/brief.js";
 
 let pass = 0, fail = 0;
 const eq = (got, want, label) => {
@@ -634,6 +635,47 @@ for (const g of GROUPS) {
    smaller than the run length gives what it has rather than repeating itself. */
 const tiny = chartItems(CHARTS.find((c) => c.title === "Days of the week"));
 eq(quizQueue(tiny, 12).length, tiny.length, "a chart shorter than the run is asked once through");
+
+/* ---------------- brief ---------------- */
+group("brief · which words are new");
+
+/* A fixed clock, mid-afternoon, and words stamped at midday: both are far from a
+   day boundary, so nothing here turns on the minute the suite happens to run. */
+const NOW = new Date(2026, 7, 26, 15, 0, 0).getTime();
+const midday = (daysAgo) => new Date(2026, 7, 26 - daysAgo, 12, 0, 0).getTime();
+const SINCE = midday(3);
+const bw = (id, addedAt) => ({ id, word: id, reading: id, meaning: "", type: "noun", addedAt });
+
+/* The filter is `>`, so a word stamped exactly at the marker has been seen. */
+eq(briefCount(newSince([bw("a", SINCE + 1)], SINCE, NOW)), 1, "one ms after the marker is new");
+eq(briefCount(newSince([bw("a", SINCE)], SINCE, NOW)), 0, "exactly the marker is not new");
+eq(briefCount(newSince([bw("a", SINCE - 1)], SINCE, NOW)), 0, "one ms before the marker is not new");
+eq(briefCount(newSince([{ id: "a", word: "a", reading: "a", type: "noun" }], SINCE, NOW)), 0,
+   "a word with no addedAt is never new");
+eq(newSince([], SINCE, NOW).length, 0, "an empty deck briefs nothing");
+eq(newSince([bw("a", SINCE - 1)], SINCE, NOW).length, 0, "nothing newer than the marker is no groups");
+
+/* Two calendar days, newest first, labelled against NOW rather than counted in
+   24-hour blocks from the marker. */
+const twoDays = newSince([bw("old", midday(1)), bw("new", midday(0))], SINCE, NOW);
+eq(twoDays.length, 2, "words either side of midnight land in two groups");
+eq(twoDays[0].label, "Today", "the newest group comes first");
+eq(twoDays[1].label, "Yesterday", "the day before it is Yesterday");
+eq(twoDays[0].words[0].id, "new", "today's group holds today's word");
+
+/* One day, three words: one group, newest word first inside it. */
+const oneDay = newSince(
+  [bw("mid", midday(0) + 1000), bw("first", midday(0)), bw("last", midday(0) + 2000)],
+  SINCE, NOW);
+eq(oneDay.length, 1, "three words on one day are one group");
+eq(oneDay[0].words.map((w) => w.id).join(","), "last,mid,first", "newest word leads its day");
+
+/* Older than yesterday gets a date, not a relative word — otherwise a fortnight
+   of arrivals all read as the same two headings. */
+const older = newSince([bw("a", midday(2))], SINCE, NOW);
+eq(older.length, 1, "a word from two days ago is new if the marker is older still");
+eq(older[0].label === "Today" || older[0].label === "Yesterday", false,
+   "a day older than yesterday is labelled by date");
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

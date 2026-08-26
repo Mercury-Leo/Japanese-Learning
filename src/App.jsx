@@ -5,13 +5,13 @@ import { Plus, Trash2, X, Search, Settings as Cog } from "lucide-react";
 
 import { C, ROLE_COLOR, MINCHO, SANS, MONO, T, JP, RUBY, S, P, applyTheme } from "./theme.js";
 import { APP_CSS } from "./app-css.js";
-import { storage, KEY, SKEY, GKEY, PKEY, readTheme, writeTheme, readSeenVersion, writeSeenVersion } from "./storage.js";
+import { storage, KEY, SKEY, GKEY, PKEY, readTheme, writeTheme, readSeenVersion, writeSeenVersion, readBriefAt, writeBriefAt } from "./storage.js";
 import { EMPTY, record, mergeStats, mergeStored } from "./stats.js";
 import { useSpeechStatus, setAudioReporter } from "./speech.js";
 import { warmDict } from "./api.js";
 import { romaji, conjugate, TYPES, typeLabel, GROUPS, SEED, FORM_HINT } from "./engine.js";
 import { DEFAULTS, mergeSettings, visibleForms, wordInScope, SCRIPTS } from "./settings.js";
-import { Word, Ladder, Strip, Chip, ConfirmModal, WhatsNew } from "./ui.jsx";
+import { Word, Ladder, Strip, Chip, ConfirmModal, WhatsNew, Brief } from "./ui.jsx";
 import AddWord from "./AddWord.jsx";
 import DeckTools from "./DeckTools.jsx";
 import StackPanel from "./StackPanel.jsx";
@@ -24,6 +24,7 @@ import ChartsView from "./ChartsView.jsx";
 import Say from "./Say.jsx";
 import Install from "./Install.jsx";
 import { CHANGELOG } from "./changelog.js";
+import { newSince, briefCount } from "./brief.js";
 
 export default function App() {
   const [words, setWords] = useState([]);
@@ -60,6 +61,18 @@ export default function App() {
     const i = CHANGELOG.findIndex((e) => e.version === lastVersion);
     return i === -1 ? CHANGELOG : CHANGELOG.slice(0, i);
   })();
+
+  /* The brief's window. A device with no marker — first run, or first run since
+     this shipped — gets the last seven days rather than the whole deck: an import
+     file without addedAt stamps every row Date.now(), so "since the beginning"
+     would open a 400-word brief on a deck that was just moved onto the phone. */
+  const [briefSince, setBriefSince] = useState(() => readBriefAt() || Date.now() - 7 * 86400000);
+  const [briefOpen, setBriefOpen] = useState(false);
+  /* Words the quiz should ask instead of the scope — set by the brief's Drill,
+     cleared on leaving the quiz. */
+  const [drill, setDrill] = useState(null);
+  const briefDays = useMemo(() => newSince(words, briefSince, Date.now()), [words, briefSince]);
+  const briefN = briefCount(briefDays);
 
   useEffect(() => {
     let alive = true;
@@ -195,13 +208,34 @@ export default function App() {
     if (next === view) return;
     if (next !== "quiz" && quizRun.running) { setPendingLeave(next); return; }
     setPendingLeave(false);
+    if (next !== "quiz") setDrill(null);
     setView(next);
+  }
+
+  /* Every way out of the brief means it was read, Drill included — drilling is
+     the strongest form of having read it, and leaving the line up afterwards
+     would be wrong. One timestamp, written once, on the way out. */
+  function closeBrief() {
+    const now = Date.now();
+    writeBriefAt(now);
+    setBriefSince(now);
+    setBriefOpen(false);
+  }
+
+  function drillBrief() {
+    /* Deliberately not filtered through wordInScope: the brief is an explicit
+       request for these words, so a JLPT scope must not drop them from their own
+       drill. Quiz still gets the whole deck as `allWords` for distractors. */
+    setDrill(briefDays.flatMap((g) => g.words));
+    closeBrief();
+    goto("quiz");
   }
 
   function leaveQuiz() {
     const dest = typeof pendingLeave === "string" ? pendingLeave : "deck";
     setPendingLeave(false);
     setQuizRun({ running: false, done: 0, total: 0 });
+    setDrill(null);
     setView(dest);
   }
 
@@ -330,7 +364,7 @@ export default function App() {
 
       {view === "quiz" && (
         <div style={{ maxWidth: 1120, margin: "0 auto", padding: S[4] }}>
-          <Quiz words={scopedWords} allWords={words} script={script} onProgress={setQuizRun}
+          <Quiz words={drill || scopedWords} allWords={words} script={script} onProgress={setQuizRun}
                 settings={settings} stats={stats} onRecord={recordAnswer} />
         </div>
       )}
@@ -369,6 +403,17 @@ export default function App() {
       <div style={{ maxWidth: 1120, margin: "0 auto", padding: S[4], display: "flex", gap: S[5], alignItems: "flex-start", flexWrap: "wrap" }}>
         {/* ---------------- deck ---------------- */}
         <aside className="kd-deck">
+          {/* Absent when nothing is new, so the brief has no empty state to
+              design — there is no way to reach one. */}
+          {briefN > 0 && (
+            <button className="kd-btn" onClick={() => setBriefOpen(true)}
+              style={{ width: "100%", marginBottom: S[3], background: C.panel, border: "1px solid " + C.stem,
+                       color: C.ink, padding: P.wide, fontSize: T.sm, textAlign: "left" }}>
+              <span style={{ fontFamily: MINCHO, color: C.stem, marginRight: S[2] }}>新</span>
+              {briefN} new word{briefN === 1 ? "" : "s"} since your last brief
+            </button>
+          )}
+
           <div style={{ display: "flex", gap: S[2], marginBottom: S[3] }}>
             <div style={{ position: "relative", flex: 1 }}>
               <Search size={13} style={{ position: "absolute", left: 9, top: 11, color: C.muted }} />
@@ -637,6 +682,11 @@ export default function App() {
             </button>
           </div>
         </div>
+      )}
+
+      {briefOpen && (
+        <Brief days={briefDays} count={briefN} script={script} stats={stats}
+               onDrill={drillBrief} onClose={closeBrief} />
       )}
 
       {notes.length > 0 && (

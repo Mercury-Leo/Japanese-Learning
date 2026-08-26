@@ -7,6 +7,7 @@ export const TKEY = "kotoba-theme-v1";
 export const PKEY = "kotoba-stats-v1";
 export const IKEY = "kotoba-install-v1";
 export const VKEY = "kotoba-version-v1";
+export const BKEY = "kotoba-brief-v1";
 
 /* Theme is the one preference that has to be known before the first paint, so it
    gets a synchronous pair rather than going through the async shape below. It is
@@ -32,6 +33,17 @@ export function readSeenVersion() {
 }
 export function writeSeenVersion(v) {
   try { localStorage.setItem(VKEY, v); } catch { /* session-only */ }
+}
+
+/* When this device last read a brief. Synchronous like the two pairs above, and
+   separate from `settings` for the same reason: which words this phone has been
+   shown is not part of the deck anyone exports, and a device that imports a deck
+   should get its own brief rather than inheriting the exporter's. */
+export function readBriefAt() {
+  try { return Number(localStorage.getItem(BKEY)) || 0; } catch { return 0; }
+}
+export function writeBriefAt(t) {
+  try { localStorage.setItem(BKEY, String(t)); } catch { /* session-only */ }
 }
 
 export const storage = {

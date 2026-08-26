@@ -9,6 +9,14 @@
    version it cannot describe. */
 export const CHANGELOG = [
   {
+    version: "0.5.0",
+    changes: [
+      "The deck says when words have piled up since you last looked — tap it for a brief that lists them by the day they arrived, with how they have drilled so far.",
+      "Drill these asks the quiz about exactly those words, whatever your scope is set to.",
+      "Closing the brief is what marks it read, so the next one starts where this one ended.",
+    ],
+  },
+  {
     version: "0.4.0",
     changes: [
       "Every chart drills: the Quiz button in its heading asks the readings of that table, with the wrong answers taken from the same table.",
