@@ -5,7 +5,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import {
   romaji, toKana, settleKana, conjugate, detectType,
-  stackInit, stackApply, answerMatches, columns, formText, meaningItems,
+  stackInit, stackApply, answerMatches, columns, formText, meaningItems, cardItems,
   teRule, SEED, TYPES,
 } from "../src/engine.js";
 import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope, contentOf, isContentPatch, sameContent } from "../src/settings.js";
@@ -417,6 +417,32 @@ eq(meaningItems(pair, pair).length, 0, "a two-word deck cannot fill a choice, so
 const dup = [V("a", "library"), V("b", "library"), V("c", "school"), V("d", "station")];
 eq(meaningItems([dup[0]], dup).every((i) => !i.opts.includes("b")), true,
    "a same-gloss word is never offered as a wrong answer");
+
+/* ---------------- flash cards ---------------- */
+group("flash cards");
+const FC = (id, word, reading, type) => ({ id, word, reading, type, meaning: "x" });
+const eat = FC("eat", "食べる", "たべる", "ichidan");
+const book = FC("book", "本", "ほん", "noun");
+
+const ci = cardItems([eat], ["dict", "masu", "te"]);
+eq(ci.length, 3, "one card per selected form");
+eq(ci.every((i) => i.kind === "card"), true, "every item is a card");
+eq(ci.every((i) => i.wordId === "eat" && i.formId && i.fromId === null), true, "a card carries a real form id");
+eq(ci.map((i) => i.formId).join(","), "dict,masu,te", "cards come out in engine form order");
+eq(cardItems([eat], ["nope"]).length, 0, "a form id the word does not have yields nothing");
+eq(cardItems([], ["dict"]).length, 0, "an empty pool yields nothing");
+
+// 食べられる is both the potential and the passive. Two cards with one front and
+// contradicting backs is a trap rather than a drill, so the first of the pair in
+// engine order wins and the second is dropped.
+const both = cardItems([eat], ["pot", "pass"]);
+eq(both.length, 1, "a homograph pair collapses to one card");
+eq(both[0].formId, "pot", "and it is the first of the pair in engine order");
+
+// A noun is not a special case: build() routes it through buildNaAdj, which gives
+// it ten forms of its own. This is why flash cards need no Meaning question.
+eq(cardItems([book], ["dict", "desu", "janai"]).length, 3, "a noun yields cards like anything else");
+eq(cardItems([eat, book], ["dict"]).length, 2, "one card per word per form across the pool");
 
 /* ---------------- te rules ---------------- */
 // The whole point of the stats feature is aggregating along the grammar, so a
