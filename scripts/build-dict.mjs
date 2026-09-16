@@ -1,4 +1,4 @@
-/* Builds src/dict.json — the offline lookup dictionary.
+/* Builds src/dict.json and src/dict-rare.json — the offline lookup dictionary.
    Run: npm run dict   (the output is committed; rerun only to pick up a newer JMdict)
 
    Source: JMdict, by the Electronic Dictionary Research and Development Group,
@@ -6,8 +6,12 @@
    here has to parse the 60MB XML. JMdict is CC BY-SA 4.0 — the attribution in
    README.md and the app footer is a licence condition, not a courtesy.
 
-   We take the "common" subset (~22k entries, the words a learner actually meets)
-   rather than the full 200k, because the whole file ships to a phone. */
+   Two files, because the whole of JMdict is 200k entries and a phone should not
+   download all of it to look up 食べる. The common subset (~22k entries, the words
+   a learner actually meets) is dict.json and loads on the first lookup; everything
+   else is dict-rare.json and loads only when the common tier misses. Splitting
+   here rather than downloading two assets keeps the two halves from drifting apart
+   at different release tags. */
 import { writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
 
@@ -46,28 +50,35 @@ function gloss(sense) {
 const res = await fetch(REPO);
 if (!res.ok) throw new Error("GitHub API returned " + res.status);
 const rel = await res.json();
-const asset = rel.assets.find((a) => /^jmdict-eng-common-.*\.json\.tgz$/.test(a.name));
-if (!asset) throw new Error("no jmdict-eng-common tgz in release " + rel.tag_name);
+const asset = rel.assets.find((a) => /^jmdict-eng-\d.*\.json\.tgz$/.test(a.name));
+if (!asset) throw new Error("no jmdict-eng tgz in release " + rel.tag_name);
 
 console.log("fetching " + asset.name + " (" + (asset.size / 1048576).toFixed(1) + " MB)");
 const tgz = await fetch(asset.browser_download_url);
 if (!tgz.ok) throw new Error("download returned " + tgz.status);
 const raw = JSON.parse(untarSingle(gunzipSync(Buffer.from(await tgz.arrayBuffer()))));
 
-const out = [];
+const common = [];
+const rare = [];
 const tally = {};
-const add = (word, reading, meaning, type, tr) => {
+const add = (out, word, reading, meaning, type, tr) => {
   out.push([word, reading, meaning, type, tr]);
-  tally[type] = (tally[type] || 0) + 1;
+  if (out === common) tally[type] = (tally[type] || 0) + 1;
 };
 
 for (const w of raw.words) {
-  /* `sk` marks a search-only form — a spelling that exists so lookups hit, not one
-     to show a learner. Same for `rK`, a rare kanji form. */
-  const kana = w.kana.find((k) => !k.tags.includes("sk")) || w.kana[0];
-  if (!kana) continue;
-  const kanji = w.kanji.find((k) => k.common && !k.tags.includes("rK"));
-  const head = kanji ? kanji.text : kana.text;
+  /* `sk`/`sK` mark a search-only form — a spelling that exists so lookups hit, not
+     one to show a learner. Dropping them costs a few lookups and saves showing a
+     learner a spelling JMdict itself calls irregular.
+     ponytail: if a miss ever turns out to be a search-only form, index them with a
+     sixth column holding the form to display instead. */
+  const kana = w.kana.filter((k) => !k.tags.includes("sk"));
+  if (!kana.length) continue;
+  const kanji = w.kanji.filter((k) => !k.tags.includes("sK"));
+  /* The head is what the learner sees in the picker and adds to the deck, so a
+     common everyday kanji beats a rare one (`rK`); a word with no common kanji at
+     all still heads with kanji if it has any, or it is a kana word. */
+  const head = (kanji.find((k) => k.common && !k.tags.includes("rK")) || kanji[0] || kana[0]).text;
 
   let type = null;
   let tr = "";
@@ -75,17 +86,33 @@ for (const w of raw.words) {
     const c = wordClass(s.partOfSpeech);
     if (c) { type = c; tr = trans(s.partOfSpeech); break; }
   }
-  add(head, kana.text, gloss(w.sense[0]), type || "noun", tr);
+  const g = gloss(w.sense[0]);
+  /* jmdict-simplified's own "common" release is exactly the entries with a form
+     carrying a priority code, so splitting on that here reproduces it. */
+  const out = w.kanji.some((k) => k.common) || w.kana.some((k) => k.common) ? common : rare;
+
+  /* One row per surface form, not one per entry. 分かる, 解る and 判る are all
+     わかる and a learner types whichever one they read; indexing only the head meant
+     two of the three found nothing. Kanji forms pair with the first reading and
+     extra readings pair with the head, rather than every kanji against every kana —
+     the cross product triples the file to answer queries nobody types. */
+  for (const k of new Set([head, ...kanji.map((k) => k.text)]))
+    add(out, k, kana[0].text, g, type || "noun", tr);
+  for (const k of kana.slice(1))
+    add(out, head === kana[0].text ? k.text : head, k.text, g, type || "noun", tr);
 
   /* JMdict lists 勉強 as a noun tagged `vs` — "takes する" — never as 勉強する.
      Faithful to the dictionary, useless to a conjugation drill: without this the
      whole common subset yields 46 する-verbs. Emit the する form alongside the
      noun, which is the form buildSuru() expects and the form a learner drills. */
-  if (w.sense.some((s) => s.partOfSpeech.includes("vs")) && !head.endsWith("する")) {
-    add(head + "する", kana.text + "する", gloss(w.sense[0]), "suru", trans(w.sense[0].partOfSpeech));
-  }
+  if (w.sense.some((s) => s.partOfSpeech.includes("vs")) && !head.endsWith("する"))
+    add(out, head + "する", kana[0].text + "する", g, "suru", trans(w.sense[0].partOfSpeech));
 }
 
-writeFileSync(new URL("../src/dict.json", import.meta.url), JSON.stringify(out));
-console.log(rel.tag_name.split("+")[0] + " · " + out.length + " entries");
+for (const [name, rows] of [["dict", common], ["dict-rare", rare]]) {
+  const json = JSON.stringify(rows);
+  writeFileSync(new URL(`../src/${name}.json`, import.meta.url), json);
+  console.log(name + ".json · " + rows.length + " rows · " + (json.length / 1048576).toFixed(1) + " MB");
+}
+console.log(rel.tag_name.split("+")[0]);
 console.log(tally);

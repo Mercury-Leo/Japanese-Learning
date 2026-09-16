@@ -67,12 +67,19 @@ attribution in the app footer is a condition of that licence — leave it in pla
 note that CC BY-SA is a share-alike licence, so redistributing the data (including
 inside `src/dict.json`) carries the same terms.
 
-`scripts/build-dict.mjs` pulls the *common* subset from
+`scripts/build-dict.mjs` pulls JMdict from
 [jmdict-simplified](https://github.com/scriptin/jmdict-simplified), which republishes
-JMdict as JSON so nothing here has to parse the 60 MB XML. It keeps six fields per
-entry — written form, reading, gloss, word class, transitivity, common — which is
-1.9 MB raw and 0.6 MB gzipped, code-split into its own chunk and fetched on first use
-rather than bundled with the app.
+it as JSON so nothing here has to parse the 60 MB XML. It keeps five fields per row —
+written form, reading, gloss, word class, transitivity — and writes one row per
+*surface form* rather than per entry, so 分かる, 解る and 判る are all findable.
+
+It splits the result in two. `src/dict.json` is the common subset, the ~22k entries a
+learner actually meets: 0.7 MB gzipped, code-split into its own chunk and fetched when
+the add-word panel opens. `src/dict-rare.json` is the other 196k entries, 6.4 MB
+gzipped, and is fetched **only** when a lookup finds nothing in the common tier — so
+an ordinary lookup never pays for it, and a word from the wild is still found offline
+once the chunk has been cached. Words from the rare tier are tagged `common: false`,
+which is what the scope filters read.
 
 ## What's here
 
@@ -95,7 +102,9 @@ src/app-css.js  the global sheet — pseudo-classes, media queries, keyframes.
 src/storage.js  localStorage behind an async interface.
 src/speech.js   Web Speech audio with failure reporting.
 src/api.js      dictionary lookup, and the two optional network features.
-src/dict.json   JMdict, 26k common entries, built by npm run dict. Committed.
+src/dict.json   JMdict common subset, built by npm run dict. Committed.
+src/dict-rare.json
+                the rest of JMdict, fetched only when the common tier misses.
 test/           the regression suite. Its "module wiring" group statically
                 checks every component file's import list, because a missing
                 import is a blank screen no engine test can see.

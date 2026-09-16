@@ -395,6 +395,24 @@ eq(find("勉強する")[3], "suru", "the する form is emitted for vs-tagged no
 eq(find("勉強")[3], "noun", "and the bare noun is kept alongside it");
 eq(dict.every((r) => TYPES.some((t) => t.id === r[3])), true, "every entry carries a class the engine knows");
 eq(dict.every((r) => r[1] && !/[a-zA-Z]/.test(r[1])), true, "every reading is kana, never romaji");
+// Every surface form is indexed, not just the head: a learner types whichever
+// spelling they read, and indexing one of three meant two of them found nothing.
+eq(find("解る")[3], "godan", "an alternate kanji form is its own row");
+eq(find("判る")[3], "godan", "and so is the third spelling of the same word");
+// 拘る has no kanji form JMdict marks common, which used to head the entry with its
+// reading and leave the kanji unfindable.
+eq(find("拘る")[3], "godan", "an entry with no common kanji still heads with kanji");
+
+// The rare tier — everything outside the common subset, loaded only when the
+// common one misses. Split by build-dict, so nothing else notices if it goes empty.
+const rare = JSON.parse(readFileSync(new URL("../src/dict-rare.json", import.meta.url), "utf8"));
+eq(rare.length > 100000, true, "the rare tier is the rest of JMdict, not a stub");
+eq(rare.every((r) => TYPES.some((t) => t.id === r[3])), true, "rare entries carry a class too");
+// Homographs put the odd spelling in both tiers — 大分 is two JMdict entries — but
+// the tier that matters is the one holding what the common subset never had.
+eq(dict.some((r) => r[0] === "黄昏れる"), false, "a rare word is absent from the common tier");
+eq(rare.some((r) => r[0] === "黄昏れる"), true, "and present in the rare one");
+eq(rankMatches(rare, "黄昏れる", false)[0].common, false, "a rare hit is not flagged common");
 
 /* ---------------- meaning questions ---------------- */
 group("meaning questions");
