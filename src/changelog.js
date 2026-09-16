@@ -14,6 +14,8 @@ export const CHANGELOG = [
       "The Quiz tab turns into a stack of flash cards: a form on the front, and on the back the word it came from, what it means, and what the form is called.",
       "The back shows the morphemes too, so a card says why 食べました is the polite past rather than only that it is.",
       "Say whether you knew it and the answer counts toward Progress like any other.",
+      "Lookup finds a word by whichever spelling you read it in: 分かる, 解る and 判る are three ways to the same entry, and 拘る and 有難う are findable by their kanji at last.",
+      "The whole of JMdict is offline now, not just the common words. The rest arrives as a second chunk, fetched only when the common ones have nothing — so an ordinary lookup is no slower, and a word from the wild is still there on a plane.",
     ],
   },
   {

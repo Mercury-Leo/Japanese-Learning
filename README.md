@@ -167,14 +167,14 @@ can revoke.
 **Sentences are generated, not sourced.** For a real build, pull them from
 Tatoeba (CC-licensed) or JMdict's `JMdict_e_examp.xml`.
 
-**Lookup is Japanese-in only, and covers the common 26,000.** English-in was tried
-and cut: matching a gloss is easy, but ordering the matches is not — "quiet" hits
-静か, 安静, 穏やか and a dozen more, and picking the one a learner means needs the
-frequency data in JMdict's `nf01`–`nf48` priority codes, which the simplified JSON
-drops. A "quiet" without 静か in it reads as broken, so English and anything outside
-the common subset fall through to the model, which is good at that fuzziness. With
-no key they fall through to the manual form instead. Parsing the full JMdict XML for
-the `nf` codes is the fix if this ever matters.
+**Lookup is Japanese-in only.** The coverage half of this is gone — the rare tier
+carries the rest of JMdict — but English-in was tried and cut: matching a gloss is
+easy, but ordering the matches is not — "quiet" hits 静か, 安静, 穏やか and a dozen
+more, and picking the one a learner means needs the frequency data in JMdict's
+`nf01`–`nf48` priority codes, which the simplified JSON drops. A "quiet" without 静か
+in it reads as broken, so English falls through to the model, which is good at that
+fuzziness. With no key it falls through to the manual form instead. Parsing the full
+JMdict XML for the `nf` codes is the fix if this ever matters.
 
 **Word class is still guessed on *manual* entry.** Lookup no longer guesses — JMdict
 gives it as data, `v5k-s` *is* the 行く irregularity and `adj-ix` *is* the いい one.
