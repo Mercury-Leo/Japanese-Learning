@@ -3,11 +3,12 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { C, MINCHO, MONO, T, JP, RUBY, S, P } from "./theme.js";
 import {
   romaji, toKana, settleKana, conjugate, typeLabel, GROUPS, formText, formKana,
-  answerMatches, shuffle, shuffleStable, meaningItems, REVERSE_SOURCES,
+  answerMatches, shuffle, shuffleStable, meaningItems, cardItems, REVERSE_SOURCES,
 } from "./engine.js";
 import { MEANING, ruleKey, byRule } from "./stats.js";
 import { Word, Strip, Chip } from "./ui.jsx";
 import Say from "./Say.jsx";
+import FlashCard from "./FlashCard.jsx";
 
 /* ============================================================
    QUIZ
@@ -20,6 +21,7 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
   const [picked, setPicked] = useState(() => new Set(words.map((w) => w.id)));
   const [formIds, setFormIds] = useState(["masu", "te", "ta", "nai"]);
   const [meaningOn, setMeaningOn] = useState(true);
+  const [mode, setMode] = useState("quiz");
   const [len, setLen] = useState(20);
   const [dir, setDir] = useState("mixed");
   const [ime, setIme] = useState(true);
@@ -30,6 +32,9 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
   const [misses, setMisses] = useState([]);
   const [input, setInput] = useState("");
   const [judged, setJudged] = useState(null);
+  /* A card has three states where a question has two: `flipped && !judged` —
+     revealed, not yet graded — is the one the grade buttons live in. */
+  const [flipped, setFlipped] = useState(false);
 
   useEffect(() => {
     setFormIds((ids) => ids.filter((id) => settings.formIds.includes(id)));
@@ -53,6 +58,10 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
   }, [poolKey, settings.formIds.join(",")]); // eslint-disable-line
 
   const items = useMemo(() => {
+    /* Cards are one per (word, form) and nothing else. No direction to pick,
+       and no meaning pair: every card reveals its meaning anyway, so the
+       Meaning question would be the same card twice. */
+    if (mode === "cards") return cardItems(pool, formIds);
     const out = [];
     for (const w of pool) {
       const fs = conjugate(w);
@@ -81,7 +90,7 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
     }
     if (meaningOn) out.push(...meaningItems(pool, words));
     return out;
-  }, [poolKey, formIds.join(","), dir, meaningOn, words]); // eslint-disable-line
+  }, [poolKey, formIds.join(","), dir, meaningOn, words, mode]); // eslint-disable-line
 
   const total = items.length;
   const meaningCount = items.filter((i) => i.kind.startsWith("mean")).length;
@@ -95,6 +104,7 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
     setMisses([]);
     setInput("");
     setJudged(null);
+    setFlipped(false);
     setStage("run");
   }
 
@@ -147,8 +157,21 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
   function advance() {
     setInput("");
     setJudged(null);
+    setFlipped(false);
     if (idx + 1 >= queue.length) setStage("done");
     else setIdx((i) => i + 1);
+  }
+
+  /* A card has already shown its whole back by the time you grade it, so there
+     is nothing left to reveal and the grade is the advance. judge() still does
+     the recording, so there is still exactly one place that records. Both
+     setState calls land in one batch, which is why `judged` is never observed
+     true on a card — and why the verdict block and the Next-focus effect below
+     never fire for one. */
+  function grade(ok) {
+    if (!flipped) return;
+    judge(ok);
+    advance();
   }
 
   const toggleWord = (id) => setPicked((s) => {
@@ -161,6 +184,7 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
   /* Derived above the stage returns rather than beside the JSX that uses them,
      because the two hooks below need them and hooks cannot sit after a return. */
   const isRecog = !!current && current.kind === "recognise";
+  const isCard = !!current && current.kind === "card";
   const toEn = !!current && current.kind === "mean-en";
   const options = !current ? []
     : isRecog && target
@@ -182,6 +206,20 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
          submit(), and a focused button activates natively. This listener is only
          for keys nothing else has claimed. */
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      /* A card is flip-then-grade, so it does not share the question keys.
+         Enter or Space opens it; once open, only the digits commit. Enter is
+         deliberately inert after the flip, and no grade button is focused —
+         a held Enter would otherwise walk the deck recording answers nobody
+         gave, and whichever button had the focus is the one it would record. */
+      if (isCard) {
+        if (!flipped) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFlipped(true); }
+        } else if (e.key === "1" || e.key === "2") {
+          e.preventDefault();
+          grade(e.key === "2");
+        }
+        return;
+      }
       if (e.key === "Enter") {
         /* Focus normally sits on Next by the effect below, so the button
            handles this. The fallback matters when focus has fallen to body. */
@@ -196,7 +234,7 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [stage, judged, options]); // eslint-disable-line
+  }, [stage, judged, options, isCard, flipped]); // eslint-disable-line
 
   useEffect(() => {
     if (judged && nextRef.current) nextRef.current.focus();
@@ -215,8 +253,18 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
 
   /* ---------------- setup ---------------- */
   if (stage === "setup") {
+    const unit = mode === "cards" ? "card" : "question";
     return (
-      <div style={{ display: "flex", gap: S[4] + 2, flexWrap: "wrap", alignItems: "flex-start" }}>
+      <div>
+        <div style={{ display: "flex", gap: S[1], marginBottom: S[4] }}>
+          {[["quiz", "Quiz", "問"], ["cards", "Flash cards", "札"]].map(([id, label, jp]) => (
+            <Chip key={id} on={mode === id} ink onClick={() => setMode(id)}>
+              {label}
+              <span style={{ fontFamily: MINCHO, fontSize: T.micro, marginLeft: S[1], opacity: .8 }}>{jp}</span>
+            </Chip>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: S[4] + 2, flexWrap: "wrap", alignItems: "flex-start" }}>
         <div style={{ ...box, flex: "1 1 260px", minWidth: 240 }}>
           <div className="kd-head">
             <span className="kd-micro">Words</span>
@@ -280,6 +328,7 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
           )}
 
           <div style={{ borderTop: "1px solid " + C.ruleSoft, paddingTop: S[3], marginTop: S[1] }}>
+            {mode === "quiz" && (<>
             <div className="kd-micro" style={{ marginBottom: S[2] }}>Vocabulary</div>
             <div style={{ display: "flex", gap: S[1], flexWrap: "wrap", alignItems: "center", marginBottom: S[3] }}>
               <Chip on={meaningOn} onClick={() => setMeaningOn(!meaningOn)}>
@@ -298,6 +347,7 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
                 <Chip key={id} on={dir === id} onClick={() => setDir(id)}>{label}</Chip>
               ))}
             </div>
+            </>)}
             <div className="kd-micro" style={{ marginBottom: S[2] }}>Length</div>
             <div style={{ display: "flex", gap: S[1], flexWrap: "wrap", marginBottom: S[3] }}>
               {[10, 20, 0].map((n) => (
@@ -310,21 +360,23 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
                 padding: P.wide, fontSize: T.base, letterSpacing: ".04em",
                 cursor: total === 0 ? "default" : "pointer",
               }}>
-              {total === 0 ? "Pick words and forms to begin" : "Start · " + (len === 0 || len > total ? total : len) + " question" + ((len === 0 || len > total ? total : len) === 1 ? "" : "s")}
+              {total === 0 ? "Pick words and forms to begin" : "Start · " + (len === 0 || len > total ? total : len) + " " + unit + ((len === 0 || len > total ? total : len) === 1 ? "" : "s")}
             </button>
-            {available.length === 0 && meaningCount === 0 && (
+            {available.length === 0 && (mode === "cards" || meaningCount === 0) && (
               <div style={{ fontSize: T.fine, color: C.muted, marginTop: S[2] }}>
-                No forms available. Enable some in Settings, or turn Meaning on above.
+                No forms available. Enable some in Settings{mode === "cards" ? "." : ", or turn Meaning on above."}
               </div>
             )}
             {total > 0 && (
               <div style={{ fontSize: T.fine, color: C.muted, marginTop: S[2], lineHeight: 1.5 }}>
-                {total} available from {pool.length} word{pool.length === 1 ? "" : "s"}. Answer in kanji, kana, or romaji.
+                {total} available from {pool.length} word{pool.length === 1 ? "" : "s"}.{" "}
+                {mode === "cards" ? "Tap a card to turn it over." : "Answer in kanji, kana, or romaji."}
               </div>
             )}
           </div>
         </div>
       </div>
+    </div>
     );
   }
 
@@ -372,7 +424,7 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
             )}
             <button className="kd-btn" onClick={() => start()}
               style={{ border: "1px solid " + C.ink, padding: P.wide, fontSize: T.base, background: C.panel }}>
-              Same quiz again
+              {mode === "cards" ? "Same cards again" : "Same quiz again"}
             </button>
             <button className="kd-btn" onClick={() => setStage("setup")}
               style={{ border: "1px solid " + C.rule, color: C.muted, padding: P.wide, fontSize: T.base, background: C.panel }}>
@@ -452,19 +504,30 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
   }
   const wrongSoFar = idx + (judged ? 1 : 0) - right;
   const pctDone = Math.round((idx / queue.length) * 100);
+  const header = (
+    <div style={{ display: "flex", alignItems: "center", gap: S[3], marginBottom: S[3], flexWrap: "wrap" }}>
+      <span className="kd-micro">{idx + 1} / {queue.length}</span>
+      <div style={{ flex: 1, minWidth: 80, height: 4, background: C.ruleSoft, display: "flex" }}>
+        <div style={{ width: pctDone + "%", background: C.ink, transition: "width .25s" }} />
+      </div>
+      <span style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".1em", color: C.aux }}>◯ {right}</span>
+      <span style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".1em", color: C.stem }}>✕ {wrongSoFar}</span>
+    </div>
+  );
+
+  if (isCard) return (
+    <div>
+      {header}
+      <div style={{ ...box, borderTop: "3px solid " + C.ink, padding: "20px 16px" }}>
+        <FlashCard word={cWord} form={target} script={qMode} settings={settings}
+          flipped={flipped} onFlip={() => setFlipped(true)} onGrade={grade} />
+      </div>
+    </div>
+  );
 
   return (
     <div>
-      {/* progress + live tally */}
-      <div style={{ display: "flex", alignItems: "center", gap: S[3], marginBottom: S[3], flexWrap: "wrap" }}>
-        <span className="kd-micro">{idx + 1} / {queue.length}</span>
-        <div style={{ flex: 1, minWidth: 80, height: 4, background: C.ruleSoft, display: "flex" }}>
-          <div style={{ width: pctDone + "%", background: C.ink, transition: "width .25s" }} />
-        </div>
-        <span style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".1em", color: C.aux }}>◯ {right}</span>
-        <span style={{ fontFamily: MONO, fontSize: T.micro, letterSpacing: ".1em", color: C.stem }}>✕ {wrongSoFar}</span>
-      </div>
-
+      {header}
       <div style={{ ...box, borderTop: "3px solid " + C.ink, padding: "20px 16px" }}>
         {/* The ask. This is the instruction that changes card to card, and
             reading it wrong means answering a different form entirely — so it

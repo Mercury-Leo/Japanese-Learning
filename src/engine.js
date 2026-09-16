@@ -819,6 +819,30 @@ function meaningItems(pool, all) {
   return out;
 }
 
+/* Flash cards — one per (word, form) the caller asked for, in engine form order.
+   Unlike a quiz item there is no direction and no distractor set: a card has a
+   front and a back, and the back is the same every time.
+
+   The dedupe is the whole reason this is a function rather than two nested maps.
+   An ichidan potential and passive are both 食べられる, and two cards with one
+   front and contradicting backs teaches that the front is ambiguous — which it
+   is, but that is a lesson for the breakdown, not for a recall drill. First form
+   in engine order wins. */
+function cardItems(pool, formIds) {
+  const want = new Set(formIds);
+  const out = [];
+  for (const w of pool) {
+    const taken = new Set();
+    for (const f of conjugate(w)) {
+      if (!want.has(f.id)) continue;
+      const surface = formText(f);
+      if (taken.has(surface)) continue;
+      taken.add(surface);
+      out.push({ wordId: w.id, formId: f.id, fromId: null, kind: "card" });
+    }
+  }
+  return out;
+}
 
 export {
   romaji,
@@ -846,6 +870,7 @@ export {
   shuffle,
   shuffleStable,
   meaningItems,
+  cardItems,
   REVERSE_SOURCES,
   SEED,
   seg,

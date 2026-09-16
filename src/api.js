@@ -83,19 +83,27 @@ export function candidateWithTags(c) {
 let dictP = null;
 const dict = () => (dictP ||= import("./dict.json").then((m) => m.default));
 
+/* The other 196k JMdict entries. Same shape, separate chunk, and never fetched
+   until the common tier comes up empty — it is ten times the size, which is worth
+   one wait for a word a learner actually met and is not worth putting in front of
+   every lookup. The service worker caches it like any other asset, so the wait
+   happens once per device. */
+let rareP = null;
+const rareDict = () => (rareP ||= import("./dict-rare.json").then((m) => m.default));
+
 /** Start the download when the learner opens the add-word panel rather than when
  *  they hit Look up, so the fetch overlaps with them typing instead of stalling
  *  behind it. Opening the panel is the intent signal — prefetching on load would
  *  spend 600KB of somebody's mobile data on a feature they may never touch. */
 export const warmDict = () => { dict(); };
 
-const toCandidate = (r) => ({
+const toCandidate = (r, common = true) => ({
   word: r[0],
   reading: r[1],
   meaning: r[2],
   type: r[3],
   ...(r[4] ? { transitivity: r[4] === "trans" ? "transitive" : "intransitive" } : {}),
-  common: true,
+  common,
 });
 
 /** Japanese in, candidates out: the written form, then the reading, then the
@@ -209,7 +217,7 @@ function deconjugate(kana) {
   return out;
 }
 
-export function rankMatches(rows, query) {
+export function rankMatches(rows, query, common = true) {
   const q = query.trim();
   if (!q) return [];
   /* settleKana finalises a trailing bare n — without it `toshokan` converts to
@@ -251,10 +259,19 @@ export function rankMatches(rows, query) {
       .sort((a, b) => round(a) - round(b) || conjugable(b) - conjugable(a))
       .map((r) => [r, tier < 3]))
     .slice(0, 3)
-    .map(([r, sure]) => ({ ...candidateWithTags(toCandidate(r)), sure }));
+    .map(([r, sure]) => ({ ...candidateWithTags(toCandidate(r, common)), sure }));
 }
 
-const lookupLocal = async (query) => rankMatches(await dict(), query);
+/* Common first, then the rare half — and only if the common half had nothing it
+   could stand behind, so the big chunk stays unfetched for every ordinary lookup.
+   A prefix guess off the common tier is still worth keeping when the rare tier has
+   no better answer: it is the one a learner is likelier to have meant. */
+async function lookupLocal(query) {
+  const hits = rankMatches(await dict(), query);
+  if (hits.some((c) => c.sure)) return hits;
+  const rare = rankMatches(await rareDict(), query, false);
+  return rare.some((c) => c.sure) || !hits.length ? rare : hits;
+}
 
 /** The dictionary first — it is offline, exact, and needs no key. The model only
  *  sees what the common subset does not carry, and only when a key exists; with no

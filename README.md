@@ -67,12 +67,19 @@ attribution in the app footer is a condition of that licence — leave it in pla
 note that CC BY-SA is a share-alike licence, so redistributing the data (including
 inside `src/dict.json`) carries the same terms.
 
-`scripts/build-dict.mjs` pulls the *common* subset from
+`scripts/build-dict.mjs` pulls JMdict from
 [jmdict-simplified](https://github.com/scriptin/jmdict-simplified), which republishes
-JMdict as JSON so nothing here has to parse the 60 MB XML. It keeps six fields per
-entry — written form, reading, gloss, word class, transitivity, common — which is
-1.9 MB raw and 0.6 MB gzipped, code-split into its own chunk and fetched on first use
-rather than bundled with the app.
+it as JSON so nothing here has to parse the 60 MB XML. It keeps five fields per row —
+written form, reading, gloss, word class, transitivity — and writes one row per
+*surface form* rather than per entry, so 分かる, 解る and 判る are all findable.
+
+It splits the result in two. `src/dict.json` is the common subset, the ~22k entries a
+learner actually meets: 0.7 MB gzipped, code-split into its own chunk and fetched when
+the add-word panel opens. `src/dict-rare.json` is the other 196k entries, 6.4 MB
+gzipped, and is fetched **only** when a lookup finds nothing in the common tier — so
+an ordinary lookup never pays for it, and a word from the wild is still found offline
+once the chunk has been cached. Words from the rare tier are tagged `common: false`,
+which is what the scope filters read.
 
 ## What's here
 
@@ -95,7 +102,9 @@ src/app-css.js  the global sheet — pseudo-classes, media queries, keyframes.
 src/storage.js  localStorage behind an async interface.
 src/speech.js   Web Speech audio with failure reporting.
 src/api.js      dictionary lookup, and the two optional network features.
-src/dict.json   JMdict, 26k common entries, built by npm run dict. Committed.
+src/dict.json   JMdict common subset, built by npm run dict. Committed.
+src/dict-rare.json
+                the rest of JMdict, fetched only when the common tier misses.
 test/           the regression suite. Its "module wiring" group statically
                 checks every component file's import list, because a missing
                 import is a blank screen no engine test can see.
@@ -119,6 +128,11 @@ test/           the regression suite. Its "module wiring" group statically
   drill. **Meaning** questions run alongside, both ways — word to gloss and
   gloss to word, multiple choice with distractors drawn from the rest of the
   deck. It is the only drill a noun has.
+- **Flash cards** in the same tab, off the same word and form pickers — a form on
+  the front, and on the back the dictionary form, the gloss, the form's name and
+  its morpheme breakdown. Self-graded, and the grade counts toward Progress like
+  a typed answer does. A noun is not a special case here: it has ten forms of its
+  own, so **Dictionary** is the plain word-to-meaning card.
 - **Offline lookup** against JMdict — type `kaeru`, `かえる` or `帰る` and get 帰る
   (godan) and 変える (ichidan) as separate entries, with transitivity attached. No
   key, no network. The word class arrives as data, so nothing is guessed.
@@ -153,14 +167,14 @@ can revoke.
 **Sentences are generated, not sourced.** For a real build, pull them from
 Tatoeba (CC-licensed) or JMdict's `JMdict_e_examp.xml`.
 
-**Lookup is Japanese-in only, and covers the common 26,000.** English-in was tried
-and cut: matching a gloss is easy, but ordering the matches is not — "quiet" hits
-静か, 安静, 穏やか and a dozen more, and picking the one a learner means needs the
-frequency data in JMdict's `nf01`–`nf48` priority codes, which the simplified JSON
-drops. A "quiet" without 静か in it reads as broken, so English and anything outside
-the common subset fall through to the model, which is good at that fuzziness. With
-no key they fall through to the manual form instead. Parsing the full JMdict XML for
-the `nf` codes is the fix if this ever matters.
+**Lookup is Japanese-in only.** The coverage half of this is gone — the rare tier
+carries the rest of JMdict — but English-in was tried and cut: matching a gloss is
+easy, but ordering the matches is not — "quiet" hits 静か, 安静, 穏やか and a dozen
+more, and picking the one a learner means needs the frequency data in JMdict's
+`nf01`–`nf48` priority codes, which the simplified JSON drops. A "quiet" without 静か
+in it reads as broken, so English falls through to the model, which is good at that
+fuzziness. With no key it falls through to the manual form instead. Parsing the full
+JMdict XML for the `nf` codes is the fix if this ever matters.
 
 **Word class is still guessed on *manual* entry.** Lookup no longer guesses — JMdict
 gives it as data, `v5k-s` *is* the 行く irregularity and `adj-ix` *is* the いい one.
