@@ -9,6 +9,14 @@
    version it cannot describe. */
 export const CHANGELOG = [
   {
+    version: "0.6.0",
+    changes: [
+      "The Quiz tab turns into a stack of flash cards: a form on the front, and on the back the word it came from, what it means, and what the form is called.",
+      "The back shows the morphemes too, so a card says why 食べました is the polite past rather than only that it is.",
+      "Say whether you knew it and the answer counts toward Progress like any other.",
+    ],
+  },
+  {
     version: "0.5.0",
     changes: [
       "The deck says when words have piled up since you last looked — tap it for a brief that lists them by the day they arrived, with how they have drilled so far.",

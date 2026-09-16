@@ -119,6 +119,11 @@ test/           the regression suite. Its "module wiring" group statically
   drill. **Meaning** questions run alongside, both ways — word to gloss and
   gloss to word, multiple choice with distractors drawn from the rest of the
   deck. It is the only drill a noun has.
+- **Flash cards** in the same tab, off the same word and form pickers — a form on
+  the front, and on the back the dictionary form, the gloss, the form's name and
+  its morpheme breakdown. Self-graded, and the grade counts toward Progress like
+  a typed answer does. A noun is not a special case here: it has ten forms of its
+  own, so **Dictionary** is the plain word-to-meaning card.
 - **Offline lookup** against JMdict — type `kaeru`, `かえる` or `帰る` and get 帰る
   (godan) and 変える (ichidan) as separate entries, with transitivity attached. No
   key, no network. The word class arrives as data, so nothing is guessed.
