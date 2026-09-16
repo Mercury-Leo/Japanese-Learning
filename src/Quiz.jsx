@@ -424,7 +424,7 @@ function Quiz({ words, allWords, script, onProgress, settings, stats, onRecord }
             )}
             <button className="kd-btn" onClick={() => start()}
               style={{ border: "1px solid " + C.ink, padding: P.wide, fontSize: T.base, background: C.panel }}>
-              Same quiz again
+              {mode === "cards" ? "Same cards again" : "Same quiz again"}
             </button>
             <button className="kd-btn" onClick={() => setStage("setup")}
               style={{ border: "1px solid " + C.rule, color: C.muted, padding: P.wide, fontSize: T.base, background: C.panel }}>
