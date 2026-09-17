@@ -9,6 +9,16 @@
    version it cannot describe. */
 export const CHANGELOG = [
   {
+    version: "0.7.0",
+    changes: [
+      "The Verbs tab runs dictionary, て, ない and たい now: each form gets a godan table and a table for the verbs its ending cannot predict.",
+      "ある sits in the ない tables where you would go looking for it, being the one verb with no ない form at all.",
+      "行く is in both of the new pairs to be crossed off — the verb that lies about its て form is honest about the other two.",
+      "A chart for asking permission and refusing it, 〜てもいいですか through 〜てはいけません, with the は that is said わ flagged as the exception it is.",
+      "In the brief, a word's meaning sits level with its kanji instead of riding up beside the furigana.",
+    ],
+  },
+  {
     version: "0.6.0",
     changes: [
       "The Quiz tab turns into a stack of flash cards: a form on the front, and on the back the word it came from, what it means, and what the form is called.",
