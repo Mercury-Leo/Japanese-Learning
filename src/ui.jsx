@@ -14,16 +14,20 @@ import { wordAccuracy } from "./stats.js";
 function Word({ text, kana, mode, ruby = RUBY.md, rubyColor = C.muted, reserve = false }) {
   const cols = columns(text, kana, mode);
   const showRuby = mode === "furigana" && (reserve || cols.some((c) => c.ruby));
+  /* inline-block, not inline-flex: a flex box hands out its FIRST line's
+     baseline, which with furigana on is the ruby — so a gloss set `baseline`
+     beside a word rode up level with the kana instead of sitting on the kanji.
+     An inline-block hands out its LAST line's. Same box, same size. */
   return (
-    <span style={{ display: "inline-flex", alignItems: "flex-end" }}>
+    <span style={{ display: "inline-block", whiteSpace: "nowrap" }}>
       {cols.map((c, i) => (
-        <span key={i} style={{ display: "inline-flex", flexDirection: "column", alignItems: "center" }}>
+        <span key={i} style={{ display: "inline-block", textAlign: "center", verticalAlign: "baseline" }}>
           {showRuby && (
-            <span style={{ fontSize: ruby, lineHeight: 1.1, height: "1.25em", color: rubyColor, whiteSpace: "nowrap", letterSpacing: ".02em" }}>
+            <span style={{ display: "block", fontSize: ruby, lineHeight: 1.1, height: "1.25em", color: rubyColor, whiteSpace: "nowrap", letterSpacing: ".02em" }}>
               {c.ruby || "\u00a0"}
             </span>
           )}
-          <span style={{ lineHeight: 1.2 }}>{c.base}</span>
+          <span style={{ display: "block", lineHeight: 1.2 }}>{c.base}</span>
         </span>
       ))}
     </span>
