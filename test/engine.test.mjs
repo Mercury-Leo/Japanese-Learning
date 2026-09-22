@@ -6,7 +6,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import {
   romaji, toKana, settleKana, conjugate, detectType,
   stackInit, stackApply, answerMatches, columns, formText, meaningItems, cardItems,
-  teRule, SEED, TYPES,
+  teRule, SEED, TYPES, GODAN,
 } from "../src/engine.js";
 import { allForms, DEFAULTS, PRESETS, applyPreset, mergeSettings, visibleForms, visibleMods, wordInScope, contentOf, isContentPatch, sameContent } from "../src/settings.js";
 import { tagsFromLookup, candidateWithTags, rankMatches } from "../src/api.js";
@@ -642,6 +642,26 @@ for (const c of CHARTS) {
     eq(KANA_ONLY.test(kana), true, `${c.title} · ${label} · "${kana}" is kana only`);
     eq(/[ぁ-んァ-ヺ]/.test(chartRomaji(kana)), false, `${c.title} · ${label} · "${kana}" transliterates fully`);
   }
+}
+
+/* The godan verb tables are typed out by hand while the engine derives the same
+   forms from its own kana table. A slip in one cell hides completely: the chart
+   renders, the romaji under it is correct for the wrong kana, and only the card
+   beside it disagrees. So check the columns against the engine, not by eye. */
+const chartRows = (t) => CHARTS.find((c) => c.title === t).rows;
+const godanDict = chartRows("Dictionary forms, ending by ending");
+for (const [title, build] of [
+  ["The て form, ending by ending", (stem, g) => stem + g.te],
+  ["The ない form, ending by ending", (stem, g) => stem + g.a + "ない"],
+  ["The たい form, ending by ending", (stem, g) => stem + g.i + "たい"],
+]) {
+  const rows = chartRows(title);
+  eq(rows.length, godanDict.length, `${title} · one row per dictionary form`);
+  rows.forEach((r, i) => {
+    const dict = cell(godanDict[i].cells[0]).kana;
+    eq(cell(r.cells[0]).kana, build(dict.slice(0, -1), GODAN[dict.slice(-1)]),
+       `${title} · ${r.k} · the engine conjugates ${dict} the same way`);
+  });
 }
 
 /* ---------------- chart quiz ---------------- */

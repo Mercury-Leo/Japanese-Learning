@@ -339,10 +339,10 @@ const EXITS = {
 
 /* The only charts here that hold transformations rather than words, and the one
    place a verb's class stops being trivia: get it wrong and you produce 食べって.
-   Four tables, not two: godan splits from the unpredictable ones because a
+   Eight tables, not four: godan splits from the unpredictable ones because a
    single heading cannot say both "the ending decides this" and "the ending
-   cannot tell you", and the dictionary form splits from the て form so neither
-   column has to share a scroll with the other on a phone.
+   cannot tell you", and each form gets its own table so no two columns have to
+   share a scroll on a phone.
 
    The rule lives in the row label, not the note — a reader should not have to
    diff 飲む against 飲んで to work out that む becomes んで. It cannot be a column
@@ -351,26 +351,44 @@ const EXITS = {
    The 音便 names match the ones the conjugation view prints, so a chart and a
    card cannot disagree about 書いて. */
 const GODAN_ROWS = [
-  { k: "〜う → 〜って", gloss: "buy", dict: "買う|かう", te: "買って|かって" },
-  { k: "〜つ → 〜って", gloss: "wait", dict: "待つ|まつ", te: "待って|まって" },
-  { k: "〜る → 〜って", gloss: "take", dict: "取る|とる", te: "取って|とって" },
-  { k: "〜ぬ → 〜んで", gloss: "die", dict: "死ぬ|しぬ", te: "死んで|しんで" },
-  { k: "〜ぶ → 〜んで", gloss: "play", dict: "遊ぶ|あそぶ", te: "遊んで|あそんで" },
-  { k: "〜む → 〜んで", gloss: "drink", dict: "飲む|のむ", te: "飲んで|のんで" },
-  { k: "〜く → 〜いて", gloss: "write", dict: "書く|かく", te: "書いて|かいて" },
-  { k: "〜ぐ → 〜いで", gloss: "swim", dict: "泳ぐ|およぐ", te: "泳いで|およいで" },
-  { k: "〜す → 〜して", gloss: "speak", dict: "話す|はなす", te: "話して|はなして" },
+  { k: "〜う → 〜って", kn: "〜う → 〜わない", kt: "〜う → 〜いたい", gloss: "buy", dict: "買う|かう", te: "買って|かって", nai: "*買わない|かわない", tai: "買いたい|かいたい" },
+  { k: "〜つ → 〜って", kn: "〜つ → 〜たない", kt: "〜つ → 〜ちたい", gloss: "wait", dict: "待つ|まつ", te: "待って|まって", nai: "待たない|またない", tai: "待ちたい|まちたい" },
+  { k: "〜る → 〜って", kn: "〜る → 〜らない", kt: "〜る → 〜りたい", gloss: "take", dict: "取る|とる", te: "取って|とって", nai: "取らない|とらない", tai: "取りたい|とりたい" },
+  { k: "〜ぬ → 〜んで", kn: "〜ぬ → 〜なない", kt: "〜ぬ → 〜にたい", gloss: "die", dict: "死ぬ|しぬ", te: "死んで|しんで", nai: "死なない|しなない", tai: "死にたい|しにたい" },
+  { k: "〜ぶ → 〜んで", kn: "〜ぶ → 〜ばない", kt: "〜ぶ → 〜びたい", gloss: "play", dict: "遊ぶ|あそぶ", te: "遊んで|あそんで", nai: "遊ばない|あそばない", tai: "遊びたい|あそびたい" },
+  { k: "〜む → 〜んで", kn: "〜む → 〜まない", kt: "〜む → 〜みたい", gloss: "drink", dict: "飲む|のむ", te: "飲んで|のんで", nai: "飲まない|のまない", tai: "飲みたい|のみたい" },
+  { k: "〜く → 〜いて", kn: "〜く → 〜かない", kt: "〜く → 〜きたい", gloss: "write", dict: "書く|かく", te: "書いて|かいて", nai: "書かない|かかない", tai: "書きたい|かきたい" },
+  { k: "〜ぐ → 〜いで", kn: "〜ぐ → 〜がない", kt: "〜ぐ → 〜ぎたい", gloss: "swim", dict: "泳ぐ|およぐ", te: "泳いで|およいで", nai: "泳がない|およがない", tai: "泳ぎたい|およぎたい" },
+  { k: "〜す → 〜して", kn: "〜す → 〜さない", kt: "〜す → 〜したい", gloss: "speak", dict: "話す|はなす", te: "話して|はなして", nai: "話さない|はなさない", tai: "話したい|はなしたい" },
 ];
 
+/* たい shares this table with て rather than getting its own: the verbs that
+   surprise you before て are the same four, and they surprise you the same way.
+   ある is the one that would have to be added, and it is regular here —
+   ありたい is grammatical, merely something nobody says about a thing. */
 const OTHER_ROWS = [
-  { k: "〜る → 〜て", gloss: "ichidan · drop る", dict: "食べる|たべる", te: "食べて|たべて" },
-  { k: "する → して", gloss: "do", dict: "する", te: "*して" },
-  { k: "来る → 来て", gloss: "come", dict: "来る|くる", te: "*来て|きて" },
-  { k: "行く → 行って", gloss: "go", dict: "行く|いく", te: "*行って|いって" },
+  { k: "〜る → 〜て", kt: "〜る → 〜たい", gloss: "ichidan · drop る", dict: "食べる|たべる", te: "食べて|たべて", tai: "食べたい|たべたい" },
+  { k: "する → して", kt: "する → したい", gloss: "do", dict: "する", te: "*して", tai: "*したい" },
+  { k: "来る → 来て", kt: "来る → 来たい", gloss: "come", dict: "来る|くる", te: "*来て|きて", tai: "*来たい|きたい" },
+  { k: "行く → 行って", kt: "行く → 行きたい", gloss: "go", dict: "行く|いく", te: "*行って|いって", tai: "行きたい|いきたい" },
 ];
 
-/** One side of a pair: the same rows, one reading wide. */
-const oneCol = (rows, key) => rows.map(({ k, gloss, ...r }) => ({ k, gloss, cells: [r[key]] }));
+/* The ない irregulars are not the て irregulars, so they get their own rows
+   rather than another column on OTHER_ROWS. ある has an unremarkable あって and
+   no ない form at all; 行く, the one verb the て chart calls a liar, takes
+   〜く → 〜かない like every other godan verb and is listed to be crossed off. */
+const NAI_ROWS = [
+  { k: "〜る → 〜ない", gloss: "ichidan · drop る", nai: "食べない|たべない" },
+  { k: "する → しない", gloss: "do", nai: "*しない" },
+  { k: "来る → 来ない", gloss: "come", nai: "*来ない|こない" },
+  { k: "行く → 行かない", gloss: "go", nai: "行かない|いかない" },
+  { k: "ある → ない", gloss: "be · inanimate", nai: "*ない" },
+];
+
+/** One side of a set: the same rows, one reading wide. Which label a row shows
+ *  varies with the chart, because the rule is the label: the て table says
+ *  〜く → 〜いて where the ない table says 〜く → 〜かない. */
+const oneCol = (rows, key, label = "k") => rows.map((r) => ({ k: r[label], gloss: r.gloss, cells: [r[key]] }));
 
 const GODAN_DICT = {
   group: "Verbs", title: "Dictionary forms, ending by ending", jp: "辞書形",
@@ -396,6 +414,49 @@ const OTHER_TE = {
   note: "する and 来る drop る like an ichidan verb but shift their stem on the way, to し and き. 行く is the single verb in the language that lies about its ending: the く rule two charts above predicts 行いて, the real form is 行って.",
 };
 
+const GODAN_NAI = {
+  group: "Verbs", title: "The ない form, ending by ending", jp: "ない形",
+  cols: ["ない form"], rows: oneCol(GODAN_ROWS, "nai", "kn"),
+  note: "Nine endings, nine clean swaps: the last kana drops to its あ-row partner and ない follows — く to か, む to ま, る to ら. Nothing fuses, so this stem is easier than the 音便 one. う is the single break, 買わない and never 買あない, left from when the verb ended in -wu. The same あ-stem (未然形) carries the passive 買われる and the causative 買わせる, so the column is worth more than one form. And ない is an い-adjective, which is what makes the past negative 飲まなかった rather than 飲まないた. 行く, the one verb that lies about its て form, tells the truth here: 行かない.",
+};
+
+const OTHER_NAI = {
+  group: "Verbs", title: "ない forms, verb by verb", jp: "一段・不規則のない形",
+  cols: ["ない form"], rows: oneCol(NAI_ROWS, "nai"),
+  note: "An ichidan verb has one stem and uses it for everything: drop る, add ない. する keeps the same し it gives して. 来る does not — the reading moves to こ before ない where て takes き, so 来ない is こない and 来て is きて, one kanji and two readings with only the furigana to separate them. ある is the real exception in this table: あらない does not exist, the negative is bare ない, and only the polite ありません behaves. Everything else here is regular once you know the class, which is the whole difficulty — the class is learned with the word.",
+};
+
+const GODAN_TAI = {
+  group: "Verbs", title: "The たい form, ending by ending", jp: "たい形",
+  cols: ["たい form"], rows: oneCol(GODAN_ROWS, "tai", "kt"),
+  note: "Nine endings, nine swaps to the い row, and nothing fuses on the way — the kana you write is the kana you say, 書きたい and never 書いたい. This is the stem ます hangs off too (連用形, the ます-stem), so 飲みたい and 飲みます are the same step taken twice, and it is the stem the 音便 table above was built on before the sound changes chewed it up: す is the ending where the two tables still agree, because 話して was only ever 話し plus て. What comes out is an い-adjective rather than a verb, so it negates and pasts at the tail — 飲みたくない, 飲みたかった, never 飲みたいない. Say it about yourself: someone else's want is 飲みたがっている. And the object may take が as readily as を — 水が飲みたい is the more traditional of the two.",
+};
+
+const OTHER_TAI = {
+  group: "Verbs", title: "たい forms, verb by verb", jp: "一段・不規則のたい形",
+  cols: ["たい form"], rows: oneCol(OTHER_ROWS, "tai", "kt"),
+  note: "The same four verbs as the 音便 table earlier in the tab, behaving the same way: drop る for an ichidan verb, and する and 来る shift to し and き exactly as they do before て. That makes 来 the kanji to watch across the tab — 来たい is きたい like 来て, not the こない that ない takes. 行く is here only to be crossed off: the verb that lies about its て form is honest about its い-stem, so 行きたい, never 行ったい. したい is worth more than one row, too, since every noun + する verb inherits it: 勉強したい, 電話したい, 予約したい.",
+};
+
+/* The one chart in this tab that is not a stem. 〜てもいい is the て form plus a
+   fixed tail, so there is nothing per-ending to tabulate — every row here would
+   repeat the て chart. What is worth a table is the family: the request, the
+   permission, the exemption and the refusal, one worked example each, and a
+   different sound change under every one so the point that the tail does not
+   care which て it gets is made by the rows rather than by the note. */
+const PERMISSION = {
+  group: "Verbs", title: "Asking permission, and refusing it", jp: "許可・禁止",
+  cols: ["example"],
+  rows: [
+    { k: "〜てもいいですか", gloss: "drink · may I?", cells: ["飲んでもいいですか|のんでもいいですか"] },
+    { k: "〜てもいいです", gloss: "eat · you may", cells: ["食べてもいいです|たべてもいいです"] },
+    { k: "〜ても構いません", gloss: "speak · I don't mind if you", cells: ["話しても構いません|はなしてもかまいません"] },
+    { k: "〜なくてもいいです", gloss: "go · you don't have to", cells: ["行かなくてもいいです|いかなくてもいいです"] },
+    { k: "〜てはいけません", gloss: "swim · you must not", cells: ["*泳いではいけません|およいでわいけません"] },
+  ],
+  note: "Nothing new to conjugate: every tail here bolts onto a form the charts above already give you. て plus も plus いい — literally “even if you drink, it is good” — so 飲んで, 食べて and 泳いで come straight off the 音便 tables, endings and all. なくてもいい is built from the other stem: ない is an い-adjective, so it goes ない → なくて the way 高い goes 高くて, giving 行かない → 行かなくてもいい. The flagged reading is not a typo — the は in 〜ては is the topic particle and is said わ, およいでわいけません, and in speech it contracts: 泳いじゃいけない, 食べちゃだめ. Drop です and いけません for the plain forms 食べてもいい and 泳いではいけない. It is not verbs only, either: い-adjectives take くてもいい (高くてもいいです) and nouns and な-adjectives take でもいい (学生でもいいです).",
+};
+
 /* Grouped by subject, and the Charts view derives its tab row from this order —
    so a chart moves tabs by editing its `group`, and the tabs stay in the order
    their first chart appears. Notes that say "above" or "below" only ever point
@@ -406,7 +467,7 @@ export const CHARTS = [
   KOSOADO, QWORDS,
   FAMILY,
   PLACE, DIRECTIONS, COMPASS, EXITS,
-  GODAN_DICT, GODAN_TE, OTHER_DICT, OTHER_TE,
+  GODAN_DICT, GODAN_TE, OTHER_DICT, OTHER_TE, GODAN_NAI, OTHER_NAI, GODAN_TAI, OTHER_TAI, PERMISSION,
 ];
 
 export const GROUPS = [...new Set(CHARTS.map((c) => c.group))];
