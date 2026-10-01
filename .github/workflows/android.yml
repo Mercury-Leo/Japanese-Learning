@@ -1,0 +1,115 @@
+# Builds the Android app — the same dist/ that Pages deploys, wrapped by
+# Capacitor — and, when a version bump reaches main, publishes it as a GitHub
+# Release. That is what Obtainium on the phone watches. See README → Android app.
+#
+# Every APK is signed with the one key held in the repository secrets. Android
+# refuses an update signed with any other key, and the only way past that is an
+# uninstall, which deletes the deck. So a run without those secrets fails at the
+# first step instead of producing something signed with a different key, or not
+# signed at all.
+#
+# A release is a version bump, not a push: package.json's version plus its
+# CHANGELOG entry in src/changelog.js. A push whose version already has its tag
+# still builds, and its APK is kept as a run artifact, but nothing is published.
+name: Android
+
+on:
+  push:
+  workflow_dispatch:
+
+# The release step creates a tag and a Release. Nothing else here writes.
+permissions:
+  contents: write
+
+# Two pushes to main close together must not both find the tag missing and both
+# try to release it, so a run waits for the one before it.
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      # Before anything is installed, so a missing secret costs seconds and says
+      # which one it is.
+      - name: Check the signing secrets
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Repository secret $name is not set. See README → Android app."
+              missing=1
+            fi
+          done
+          exit $missing
+      - uses: actions/checkout@v7
+      # Capacitor 8's CLI needs Node 22 or newer, which is why this is not
+      # pages.yml's 20.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      # JDK 21 is what Capacitor documents for its Android build, and every
+      # Capacitor module compiles to Java 21. The runner image already carries the
+      # Android SDK.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+      - run: npm ci
+      # Same gate as Pages: a red suite must not reach the phone either.
+      - run: npm test
+      - run: npm run build
+      - run: npx cap sync android
+      # Into the runner's temp directory, outside the checkout, so the keystore
+      # can never be picked up by anything that looks at the workspace. Garbage is
+      # ignored because a secret pasted on Windows can carry carriage returns.
+      - name: Decode the keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > "$RUNNER_TEMP/kotoba.p12"
+      - name: Build the signed APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/kotoba.p12
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: ./gradlew assembleRelease
+      # app-release.apk only exists when the release signing config was applied;
+      # an unsigned build comes out as app-release-unsigned.apk, so this copy is
+      # also the guard against shipping one. build.gradle never uses the debug key.
+      - name: Name the APK after its version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          cp android/app/build/outputs/apk/release/app-release.apk "kotoba-$version.apk"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: kotoba-${{ env.VERSION }}
+          path: kotoba-${{ env.VERSION }}.apk
+          if-no-files-found: error
+      # The notes are that version's CHANGELOG entry, the same lines the app's
+      # What's New shows. A version with no entry releases with empty notes, as the
+      # app announces it silently.
+      - name: Release a new version
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$VERSION"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
+            echo "$tag already exists, so this push is not a version bump. Nothing to release."
+            exit 0
+          fi
+          notes=$(node --input-type=module -e '
+            import { CHANGELOG } from "./src/changelog.js";
+            const entry = CHANGELOG.find((e) => e.version === process.argv[1]);
+            for (const change of entry?.changes ?? []) console.log("- " + change);
+          ' "$VERSION")
+          gh release create "$tag" "kotoba-$VERSION.apk" --target "$GITHUB_SHA" --title "$tag" --notes "$notes"

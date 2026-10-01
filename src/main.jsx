@@ -1,5 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { Capacitor } from "@capacitor/core";
 import App from "./App.jsx";
 import { applyTheme } from "./theme.js";
 import { readTheme } from "./storage.js";
@@ -10,8 +11,10 @@ applyTheme(readTheme());
 
 /* Dev only ever gets the network, so no stale-bundle confusion while working.
    Registration fails on a plain-http LAN address — that is expected, and the app
-   still runs, it just is not installable there. See README. */
-if (import.meta.env.PROD && "serviceWorker" in navigator) {
+   still runs, it just is not installable there. See README. The Android app skips
+   it too: its files ship inside the APK, so there is no network to fall back from
+   and an update arrives as a new APK, not as a new index.html. */
+if (import.meta.env.PROD && !Capacitor.isNativePlatform() && "serviceWorker" in navigator) {
   window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
 }
 

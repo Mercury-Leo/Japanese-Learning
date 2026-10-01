@@ -1,3 +1,6 @@
+import { Capacitor } from "@capacitor/core";
+import { Preferences } from "@capacitor/preferences";
+
 /* The artifact ran on Claude's window.storage. Outside it, localStorage does the
    same job — kept behind the same async shape so App.jsx is unchanged. */
 export const KEY = "kotoba-deck-v1";
@@ -46,18 +49,27 @@ export function writeBriefAt(t) {
   try { localStorage.setItem(BKEY, String(t)); } catch { /* session-only */ }
 }
 
+/* Inside the Android app the async shape is backed by Preferences instead, which
+   is the app's own SharedPreferences ("CapacitorStorage") under these same keys,
+   so a home-screen widget can read the deck without a WebView. The web stays on
+   localStorage directly rather than Preferences' web fallback: that one prefixes
+   every key, which would hide every deck already saved under the bare ones. */
+const NATIVE = Capacitor.isNativePlatform();
+
 export const storage = {
   async get(key) {
-    const v = localStorage.getItem(key);
+    const v = NATIVE ? (await Preferences.get({ key })).value : localStorage.getItem(key);
     if (v === null) throw new Error("no value for " + key);
     return { key, value: v };
   },
   async set(key, value) {
-    localStorage.setItem(key, value);
+    if (NATIVE) await Preferences.set({ key, value });
+    else localStorage.setItem(key, value);
     return { key, value };
   },
   async remove(key) {
-    localStorage.removeItem(key);
+    if (NATIVE) await Preferences.remove({ key });
+    else localStorage.removeItem(key);
     return { key, deleted: true };
   },
 };

@@ -1,6 +1,13 @@
 import { useState, useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
+import { TextToSpeech } from "@capacitor-community/text-to-speech";
 
-export const SPEECH_OK = typeof window !== "undefined" && !!window.speechSynthesis;
+/* Android's System WebView has no speechSynthesis, so inside the app speech goes
+   to the platform's own engine through the TTS plugin — the same engine, and the
+   same Japanese voice, that the rest of the phone uses. */
+const NATIVE = Capacitor.isNativePlatform();
+
+export const SPEECH_OK = NATIVE || (typeof window !== "undefined" && !!window.speechSynthesis);
 
 /* One subscriber, so a play button in any panel can surface a failure without
    threading a callback through every component. */
@@ -13,6 +20,15 @@ const pickJa = (vs) =>
 
 export function speak(text) {
   if (!text) return;
+  /* The plugin rejects instead of going quiet — no Japanese voice installed, or
+     an engine still binding — so a catch does the job of the web path's check-back
+     timer. Its default queue strategy flushes whatever is still playing, so the
+     cancel-then-defer dance below is not needed either. */
+  if (NATIVE) {
+    TextToSpeech.speak({ text, lang: "ja-JP", rate: 0.85 })
+      .catch((err) => reportAudio("Speech failed: " + ((err && err.message) || "unknown error")));
+    return;
+  }
   const synth = SPEECH_OK ? window.speechSynthesis : null;
   if (!synth) {
     reportAudio("This browser doesn't expose speech synthesis, so audio isn't available here.");
@@ -62,11 +78,19 @@ export function useSpeechStatus() {
   const [st, setSt] = useState({ supported: SPEECH_OK, voices: 0, ja: 0 });
   useEffect(() => {
     if (!SPEECH_OK) return;
-    const synth = window.speechSynthesis;
-    const read = () => {
-      const vs = synth.getVoices() || [];
+    const count = (vs) =>
       setSt({ supported: true, voices: vs.length, ja: vs.filter((v) => /^ja/i.test(v.lang)).length });
-    };
+    /* The plugin lists voices with the same lang tags. Its engine binds a moment
+       after launch and the call errors until it has, so ask again until it answers. */
+    if (NATIVE) {
+      let t, tries = 5;
+      const read = () => TextToSpeech.getSupportedVoices()
+        .then((r) => count(r.voices), () => { if (tries--) t = setTimeout(read, 600); });
+      read();
+      return () => clearTimeout(t);
+    }
+    const synth = window.speechSynthesis;
+    const read = () => count(synth.getVoices() || []);
     read();
     const t = setTimeout(read, 600);
     if (synth.addEventListener) synth.addEventListener("voiceschanged", read);

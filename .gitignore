@@ -5,3 +5,8 @@ dist/
 .env.local
 .vite/
 *.log
+# Signing keys never enter the repo. CI decodes its keystore into $RUNNER_TEMP,
+# outside the checkout, so these only guard against a local copy.
+*.p12
+*.jks
+*.keystore

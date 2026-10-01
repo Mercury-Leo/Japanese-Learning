@@ -1,0 +1,10 @@
+{
+  "appId": "io.github.mercuryleo.kotobacho",
+  "appName": "言葉帳",
+  "webDir": "dist",
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "native"
+    }
+  }
+}
